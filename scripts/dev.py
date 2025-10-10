@@ -59,7 +59,10 @@ def run_server():
         return False
 
     try:
-        subprocess.run(["uv", "run", "python", "-m", "image_gen_mcp.server"], check=True)
+        subprocess.run(
+            ["uv", "run", "python", "-m", "image_gen_mcp.server"],
+            check=True,
+        )
         return True
     except KeyboardInterrupt:
         print("\n👋 Server stopped")

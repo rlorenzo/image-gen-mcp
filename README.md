@@ -63,6 +63,8 @@ The AI ecosystem has evolved to include powerful language models from multiple p
 - **Film & Media**: Storyboard and concept visualization
 - **Architecture**: Quick visual references and mood boards
 - **Advertising**: Campaign concept development
+- **Artists & Illustrators**: Drawing references with clear structural information and construction guides
+- **Art Students**: Practice materials for gesture, contour, value, and form studies
 
 > **Key Advantage**: Unlike platform-specific solutions, this universal approach means your image generation capabilities move with you across different tools and workflows, eliminating vendor lock-in and maximizing workflow efficiency.
 
@@ -368,6 +370,11 @@ Built-in templates for common use cases:
 - **Video Thumbnails**: YouTube/video thumbnails
 - **Infographics**: Data visualization images
 - **Artistic Style**: Specific art movement styles
+- **Drawing References**: Structural references for pencil drawing practice
+- **Gesture Drawing**: Movement and gesture capture studies
+- **Basic Shapes Study**: Geometric form construction exercises
+- **Contour Drawing**: Edge and form observation practice
+- **Value Study**: Light and shadow rendering exercises
 
 ## Configuration
 

@@ -25,3 +25,6 @@ logs/
 # Auto-generated monitoring configuration
 monitoring/
 redis.conf
+
+
+venv/

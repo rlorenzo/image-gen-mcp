@@ -295,6 +295,117 @@
         "style": "vivid"
       }
     },
+    "pencil_drawing": {
+      "id": "pencil_drawing",
+      "name": "adaptive-pencil-drawing",
+      "title": "Adaptive Pencil Drawing",
+      "description": "Generate clear structural references for pencil drawing. Creates clean line art showing form, proportions, and construction - the kind of reference material artists actually search for and use.",
+      "category": "creative", 
+      "version": "2.0",
+      "template": "Clear structural reference of {subject}{composition_part}, {drawing_style} showing {form_clarity}, {complexity_level}, clean line art style, ideal for {study_type} reference",
+      "parameters": {
+        "subject": {
+          "type": "string",
+          "required": true,
+          "description": "What you want to draw - the system will adapt the approach based on complexity",
+          "examples": [
+            "basic geometric shapes",
+            "a simple apple",
+            "figure in motion",
+            "detailed portrait study",
+            "complex landscape scene"
+          ]
+        },
+        "complexity_level": {
+          "type": "string",
+          "required": false,
+          "default": "moderate",
+          "description": "Visual complexity of the reference - adapts to your skill level",
+          "enum": ["simple", "moderate", "detailed", "complex"],
+          "examples": ["simple", "moderate", "detailed"]
+        },
+        "drawing_style": {
+          "type": "string",
+          "required": false,
+          "default": "clean line art with clear structure",
+          "description": "Type of reference material that shows form clearly",
+          "examples": [
+            "clean line art with clear structure",
+            "construction breakdown showing basic shapes",
+            "contour drawing with essential edges",
+            "simplified form study with proportions",
+            "structural wireframe with volume indication"
+          ]
+        },
+        "form_clarity": {
+          "type": "string",
+          "required": false,
+          "default": "clear proportions and structure",
+          "description": "What structural information is emphasized",
+          "examples": [
+            "clear proportions and structure",
+            "basic shape construction",
+            "form and volume relationships",
+            "essential contours and edges",
+            "dimensional breakdown"
+          ]
+        },
+        "study_type": {
+          "type": "string",
+          "required": false,
+          "default": "observational",
+          "description": "Type of drawing study this reference supports",
+          "enum": ["observational", "gesture", "contour", "value", "form", "anatomy", "proportions"],
+          "examples": ["observational", "gesture", "value", "form"]
+        },
+        "composition": {
+          "type": "string",
+          "required": false,
+          "default": "standard",
+          "description": "How the subject is framed",
+          "examples": ["close-up detail view", "full subject in frame", "three-quarter view", "standard framing"]
+        }
+      },
+      "conditional_parts": {
+        "composition_part": {
+          "condition": "composition !== 'standard'",
+          "value": ", {composition}"
+        }
+      },
+      "metadata": {
+        "recommended_size": "1024x1024",
+        "quality": "high",
+        "style": "natural"
+      },
+      "examples": [
+        {
+          "input": {
+            "subject": "sphere",
+            "complexity_level": "simple",
+            "study_type": "form",
+            "drawing_style": "construction breakdown showing basic shapes"
+          },
+          "output": "Clear structural reference of sphere, construction breakdown showing basic shapes showing clear proportions and structure, simple detail level, clean line art style with visible proportions and basic forms, ideal for form reference"
+        },
+        {
+          "input": {
+            "subject": "human hand",
+            "complexity_level": "detailed",
+            "study_type": "anatomy",
+            "form_clarity": "basic shape construction"
+          },
+          "output": "Clear structural reference of human hand, clean line art with clear structure showing basic shape construction, detailed detail level, clean line art style with visible construction guidelines, ideal for anatomy reference"
+        },
+        {
+          "input": {
+            "subject": "standing figure",
+            "study_type": "proportions",
+            "drawing_style": "simplified form study with proportions"
+          },
+          "output": "Clear structural reference of standing figure, simplified form study with proportions showing clear proportions and structure, moderate detail level, clean line art style with visible major axis lines, ideal for proportions reference"
+        }
+      ]
+    },
     "og_image": {
       "id": "og_image",
       "name": "og-image-prompt",
@@ -619,6 +730,287 @@
         "style": "natural"
       }
     },
+    "gesture_drawing": {
+      "id": "gesture_drawing",
+      "name": "gesture-drawing-practice",
+      "title": "Gesture Drawing Practice",
+      "description": "Learn to capture the essence and movement of subjects through quick, confident gesture drawings. Focuses on seeing the big picture and building hand-eye coordination.",
+      "category": "drawing",
+      "version": "1.0",
+      "template": "Clean gesture drawing reference of {subject}, using {line_quality} lines, focusing on {capture_focus}, {construction_visibility} construction lines, emphasize {movement_emphasis}, black lines on white paper, simple line drawing style, optimized for tracing and building upon",
+      "parameters": {
+        "subject": {
+          "type": "string",
+          "required": true,
+          "description": "Subject for gesture practice",
+          "examples": ["figure in dynamic pose", "tree swaying in wind", "cat stretching", "dancer mid-leap"],
+          "suggestions": ["human figure", "animal in motion", "flowing fabric", "organic forms"]
+        },
+        "line_quality": {
+          "type": "string",
+          "required": false,
+          "default": "confident flowing",
+          "description": "Line approach for gesture work",
+          "examples": ["bold confident", "searching exploratory", "minimal economical", "expressive varied"],
+          "suggestions": ["confident flowing", "bold decisive", "light searching", "expressive varied"]
+        },
+        "capture_focus": {
+          "type": "string",
+          "required": false,
+          "default": "overall movement and energy",
+          "description": "What aspect to emphasize in the gesture",
+          "examples": ["overall movement and energy", "weight and balance", "rhythm and flow", "proportional relationships"],
+          "suggestions": ["movement", "balance", "proportion", "energy", "rhythm"]
+        },
+        "construction_visibility": {
+          "type": "string",
+          "required": false,
+          "default": "subtle",
+          "description": "How visible construction and guidelines should be",
+          "examples": ["clearly visible", "subtle underlying", "minimal structural", "no construction lines"],
+          "enum": ["clear", "subtle", "minimal", "none"]
+        },
+        "movement_emphasis": {
+          "type": "string",
+          "required": false,
+          "default": "natural flow",
+          "description": "Type of movement to emphasize",
+          "examples": ["dynamic action", "natural flow", "weight shift", "directional force"],
+          "suggestions": ["action", "flow", "weight", "direction", "rhythm"]
+        }
+      },
+      "metadata": {
+        "recommended_size": "1024x1024",
+        "quality": "medium",
+        "style": "natural"
+      },
+      "examples": [
+        {
+          "input": {
+            "subject": "figure in dynamic running pose",
+            "line_quality": "confident flowing",
+            "capture_focus": "overall movement and energy",
+            "movement_emphasis": "directional force"
+          },
+          "output": "Gesture drawing practice of figure in dynamic running pose, 2-minute approach with confident flowing lines, focusing on overall movement and energy, subtle construction lines, emphasize directional force"
+        }
+      ]
+    },
+    "shapes_study": {
+      "id": "shapes_study",
+      "name": "basic-shapes-study",
+      "title": "Basic Shapes Form Study",
+      "description": "Learn fundamental 3D form construction through basic geometric shapes. Essential for understanding volume, light, and shadow in drawing.",
+      "category": "drawing",
+      "version": "1.0",
+      "template": "Clean basic shapes line drawing of {primary_shape} with {secondary_shapes}, {lighting_setup} lighting from {light_direction}, {shading_technique} shading technique, {construction_visibility} construction lines, focus on {learning_objective}, black lines on white paper, simple line drawing style, optimized for tracing and building upon",
+      "parameters": {
+        "primary_shape": {
+          "type": "string",
+          "required": true,
+          "description": "Main geometric form to study",
+          "examples": ["cube", "sphere", "cylinder", "cone", "pyramid"],
+          "enum": ["cube", "sphere", "cylinder", "cone", "pyramid", "rectangular prism"]
+        },
+        "secondary_shapes": {
+          "type": "string",
+          "required": false,
+          "default": "none",
+          "description": "Additional shapes for composition study",
+          "examples": ["smaller cubes", "intersecting cylinders", "stacked spheres", "combined forms"],
+          "suggestions": ["none", "additional basic shapes", "intersecting forms", "stacked arrangement"]
+        },
+        "lighting_setup": {
+          "type": "string",
+          "required": false,
+          "default": "single strong",
+          "description": "Lighting approach for form study",
+          "examples": ["single strong", "soft diffused", "dramatic directional", "multiple light sources"],
+          "enum": ["single strong", "soft diffused", "dramatic", "multiple sources"]
+        },
+        "light_direction": {
+          "type": "string",
+          "required": false,
+          "default": "upper left",
+          "description": "Direction of primary light source",
+          "examples": ["upper left", "upper right", "directly above", "side lighting"],
+          "enum": ["upper left", "upper right", "above", "side", "below", "behind"]
+        },
+        "shading_technique": {
+          "type": "string",
+          "required": false,
+          "default": "smooth blending",
+          "description": "Shading method to practice",
+          "examples": ["smooth blending", "hatching lines", "cross-hatching", "stippling dots"],
+          "enum": ["smooth blending", "hatching", "cross-hatching", "stippling", "scumbling"]
+        },
+        "construction_visibility": {
+          "type": "string",
+          "required": false,
+          "default": "clearly visible",
+          "description": "How visible construction lines should be",
+          "examples": ["clearly visible", "lightly indicated", "minimal guidelines", "clean finished"],
+          "enum": ["clear", "light", "minimal", "clean"]
+        },
+        "learning_objective": {
+          "type": "string",
+          "required": false,
+          "default": "form and volume understanding",
+          "description": "Primary learning goal for this exercise",
+          "examples": ["form and volume understanding", "light and shadow relationships", "proportional accuracy", "construction methods"],
+          "suggestions": ["form", "lighting", "proportion", "construction", "values"]
+        }
+      },
+      "metadata": {
+        "recommended_size": "1024x1024",
+        "quality": "high",
+        "style": "natural"
+      },
+      "examples": [
+        {
+          "input": {
+            "primary_shape": "sphere",
+            "lighting_setup": "single strong",
+            "light_direction": "upper left",
+            "shading_technique": "smooth blending",
+            "learning_objective": "form and volume understanding"
+          },
+          "output": "Basic shapes drawing study of sphere with none, single strong lighting from upper left, smooth blending shading technique, clearly visible construction lines, focus on form and volume understanding"
+        }
+      ]
+    },
+    "contour_drawing": {
+      "id": "contour_drawing",
+      "name": "contour-drawing-exercise",
+      "title": "Contour Drawing Exercise",
+      "description": "Develop observation skills and hand-eye coordination through contour drawing practice. Learn to really see your subject by focusing on edges and form.",
+      "category": "drawing",
+      "version": "1.0",
+      "template": "Clean contour line drawing of {subject}, {contour_type} contour approach, {line_weight} line weight, {observation_focus} observation focus, {drawing_speed} drawing pace, black lines on white paper, simple line drawing style, optimized for tracing and building upon",
+      "parameters": {
+        "subject": {
+          "type": "string",
+          "required": true,
+          "description": "Subject for contour drawing practice",
+          "examples": ["still life object", "plant with complex leaves", "crumpled paper", "hand in various positions"],
+          "suggestions": ["household object", "natural form", "fabric", "body part", "complex shape"]
+        },
+        "contour_type": {
+          "type": "string",
+          "required": false,
+          "default": "modified blind",
+          "description": "Type of contour drawing technique",
+          "examples": ["blind contour", "modified blind", "pure contour", "cross-contour"],
+          "enum": ["blind", "modified blind", "pure contour", "cross-contour", "continuous line"]
+        },
+        "line_weight": {
+          "type": "string",
+          "required": false,
+          "default": "varied expressive",
+          "description": "Line weight approach",
+          "examples": ["consistent thin", "varied expressive", "bold confident", "delicate precise"],
+          "suggestions": ["consistent", "varied", "bold", "delicate", "expressive"]
+        },
+        "observation_focus": {
+          "type": "string",
+          "required": false,
+          "default": "edge relationships",
+          "description": "What to focus observation on",
+          "examples": ["edge relationships", "form transitions", "negative spaces", "surface contours"],
+          "suggestions": ["edges", "form", "negative space", "surface", "transitions"]
+        },
+        "drawing_speed": {
+          "type": "string",
+          "required": false,
+          "default": "slow deliberate",
+          "description": "Pace of drawing for different learning goals",
+          "examples": ["slow deliberate", "moderate steady", "quick gestural", "varied rhythm"],
+          "enum": ["slow", "moderate", "quick", "varied"]
+        }
+      },
+      "metadata": {
+        "recommended_size": "1024x1024",
+        "quality": "medium",
+        "style": "natural"
+      },
+      "examples": [
+        {
+          "input": {
+            "subject": "crumpled paper bag",
+            "contour_type": "modified blind",
+            "line_weight": "varied expressive",
+            "observation_focus": "edge relationships"
+          },
+          "output": "Contour drawing exercise of crumpled paper bag, modified blind contour approach, varied expressive line weight, edge relationships observation focus, slow deliberate drawing pace"
+        }
+      ]
+    },
+    "value_study": {
+      "id": "value_study",
+      "name": "value-study-exercise",
+      "title": "Value Study Exercise",
+      "description": "Learn to see and render light, shadow, and form through value relationships. Essential for creating convincing three-dimensional drawings.",
+      "category": "drawing",
+      "version": "1.0",
+      "template": "Clean value study line drawing of {subject}, full value range, {shading_method} shading technique, {light_source} lighting condition, focus on {study_emphasis}, {simplification_level} detail level, black lines on white paper, simple line drawing style, optimized for tracing and building upon",
+      "parameters": {
+        "subject": {
+          "type": "string",
+          "required": true,
+          "description": "Subject for value study",
+          "examples": ["simple still life", "single fruit", "geometric forms", "portrait study", "landscape elements"],
+          "suggestions": ["still life", "single object", "portrait", "landscape", "drapery"]
+        },
+        "shading_method": {
+          "type": "string",
+          "required": false,
+          "default": "smooth gradation",
+          "description": "Technique for creating values",
+          "examples": ["smooth gradation", "hatching patterns", "stippling texture", "block values"],
+          "enum": ["smooth gradation", "hatching", "cross-hatching", "stippling", "block values"]
+        },
+        "light_source": {
+          "type": "string",
+          "required": false,
+          "default": "single directional",
+          "description": "Lighting setup for value study",
+          "examples": ["single directional", "soft window light", "dramatic spot light", "overcast diffused"],
+          "suggestions": ["directional", "window light", "dramatic", "diffused", "rim lighting"]
+        },
+        "study_emphasis": {
+          "type": "string",
+          "required": false,
+          "default": "form definition",
+          "description": "Primary focus of the value study",
+          "examples": ["form definition", "light pattern", "cast shadows", "reflected light", "value relationships"],
+          "suggestions": ["form", "light pattern", "shadows", "reflected light", "relationships"]
+        },
+        "simplification_level": {
+          "type": "string",
+          "required": false,
+          "default": "moderate",
+          "description": "How simplified the study should be",
+          "examples": ["highly simplified", "moderate detail", "refined finish", "quick study"],
+          "enum": ["simple", "moderate", "detailed", "quick"]
+        }
+      },
+      "metadata": {
+        "recommended_size": "1024x1024",
+        "quality": "high",
+        "style": "natural"
+      },
+      "examples": [
+        {
+          "input": {
+            "subject": "apple with cast shadow",
+            "shading_method": "smooth gradation",
+            "light_source": "single directional",
+            "study_emphasis": "form definition"
+          },
+          "output": "Value study exercise of apple with cast shadow, full range value range, smooth gradation shading technique, single directional lighting condition, focus on form definition, moderate detail level"
+        }
+      ]
+    },
     "email_header": {
       "id": "email_header",
       "name": "email-header-prompt",
@@ -724,6 +1116,11 @@
       "name": "Artistic",
       "description": "Templates for specific artistic styles and periods",
       "icon": "🖼️"
+    },
+    "drawing": {
+      "name": "Drawing Education",
+      "description": "Templates for learning fundamental drawing skills and practicing techniques",
+      "icon": "✏️"
     },
     "web": {
       "name": "Web Graphics",

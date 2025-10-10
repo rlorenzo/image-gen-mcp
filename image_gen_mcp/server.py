@@ -1,6 +1,7 @@
 """Main MCP server implementation for Image Gen.
 
-This server integrates multiple image-generation providers behind a unified MCP interface.
+This server integrates multiple image-generation providers behind a unified MCP
+interface.
 """
 
 import argparse
@@ -1324,6 +1325,407 @@ async def email_header(
         season=season,
         visual_style=visual_style,
         header_elements=header_elements,
+    )
+
+
+@mcp.prompt(
+    name="pencil_drawing",
+    title="Drawing Reference Generator",
+    description=(
+        "Generate clear structural references an artist can use to pencil draw. "
+        "Creates clean line art and construction references that artists can use. "
+        "Shows form, proportions, and structure clearly."
+    ),
+)
+async def pencil_drawing(
+    subject: str = Field(
+        ...,
+        description=(
+            "What you want to draw - creates clear structural reference "
+            "material"
+        ),
+        examples=[
+            "cat",
+            "human hand",
+            "standing figure",
+            "geometric shapes",
+            "still life objects",
+            "draped fabric",
+            "tree",
+            "portrait head",
+        ]
+    ),
+    complexity_level: str = Field(
+        default="moderate",
+        description="Amount of structural detail to show",
+        examples=["simple", "moderate", "detailed", "complex"]
+    ),
+    study_type: str = Field(
+        default="observational",
+        description="Type of reference needed",
+        examples=[
+            "observational",
+            "gesture",
+            "contour",
+            "value",
+            "form",
+            "anatomy",
+            "proportions",
+        ],
+    ),
+    drawing_style: str = Field(
+        default="clean line art with clear structure",
+        description="Type of reference material that shows form clearly",
+        examples=[
+            "clean line art with clear structure",
+            "construction breakdown showing basic shapes",
+            "contour drawing with essential edges",
+            "simplified form study with proportions",
+        ],
+    ),
+    form_clarity: str = Field(
+        default="clear proportions and structure",
+        description="What structural information to emphasize",
+        examples=[
+            "clear proportions and structure",
+            "basic shape construction",
+            "form and volume relationships",
+            "essential contours and edges",
+        ],
+    ),
+    composition: str = Field(
+        default="standard",
+        description="How the subject is framed",
+        examples=[
+            "close-up detail view",
+            "full subject in frame",
+            "three-quarter view",
+            "standard framing",
+        ],
+    ),
+) -> dict[str, Any]:
+    """Generate drawing references an artist can use to draw"""
+    return await _generate_from_template(
+        "pencil_drawing",
+        subject=subject,
+        complexity_level=complexity_level,
+        study_type=study_type,
+        drawing_style=drawing_style,
+        form_clarity=form_clarity,
+        composition=composition,
+    )
+
+
+@mcp.prompt(
+    name="gesture_drawing",
+    title="Gesture Drawing Practice",
+    description=(
+        "Generate clean gesture drawing references for capturing movement and "
+        "essence. Creates simplified line drawings perfect for quick gesture "
+        "practice and building upon."
+    ),
+)
+async def gesture_drawing(
+    subject: str = Field(
+        ...,
+        description="Subject for gesture practice",
+        examples=[
+            "figure in motion",
+            "dancer in pose",
+            "animal running",
+            "person sitting",
+            "tree in wind",
+        ]
+    ),
+    line_quality: str = Field(
+        default="flowing expressive",
+        description="Quality and character of lines",
+        examples=[
+            "flowing expressive",
+            "bold confident",
+            "loose gestural",
+            "varied weight",
+        ]
+    ),
+    capture_focus: str = Field(
+        default="overall movement and energy",
+        description="What aspect to emphasize",
+        examples=[
+            "overall movement and energy",
+            "weight and balance",
+            "rhythm and flow",
+            "proportional relationships",
+        ]
+    ),
+    construction_visibility: str = Field(
+        default="subtle",
+        description="How visible construction and guidelines should be",
+        examples=[
+            "clearly visible",
+            "subtle underlying",
+            "minimal structural",
+            "no construction lines",
+        ]
+    ),
+    movement_emphasis: str = Field(
+        default="natural flow",
+        description="Type of movement to emphasize",
+        examples=[
+            "dynamic action",
+            "natural flow",
+            "weight shift",
+            "directional force",
+        ]
+    ),
+) -> dict[str, Any]:
+    """Generate gesture drawing references for movement and essence practice."""
+    return await _generate_from_template(
+        "gesture_drawing",
+        subject=subject,
+        line_quality=line_quality,
+        capture_focus=capture_focus,
+        construction_visibility=construction_visibility,
+        movement_emphasis=movement_emphasis,
+    )
+
+
+@mcp.prompt(
+    name="shapes_study",
+    title="Basic Shapes Form Study",
+    description=(
+        "Generate clean line drawings of basic geometric shapes for form study. "
+        "Perfect for learning 3D construction, volume, and shading fundamentals."
+    ),
+)
+async def shapes_study(
+    primary_shape: str = Field(
+        ...,
+        description="Main geometric form to study",
+        examples=[
+            "cube",
+            "sphere",
+            "cylinder",
+            "cone",
+            "pyramid",
+        ],
+    ),
+    secondary_shapes: str = Field(
+        default="none",
+        description="Additional shapes for composition",
+        examples=[
+            "none",
+            "smaller cubes",
+            "intersecting cylinders",
+            "stacked spheres",
+        ],
+    ),
+    lighting_setup: str = Field(
+        default="single strong",
+        description="Lighting approach for form study",
+        examples=[
+            "single strong",
+            "soft diffused",
+            "dramatic directional",
+        ],
+    ),
+    light_direction: str = Field(
+        default="upper left",
+        description="Direction of primary light source",
+        examples=[
+            "upper left",
+            "upper right",
+            "directly above",
+            "side lighting",
+        ],
+    ),
+    shading_technique: str = Field(
+        default="smooth blending",
+        description="Shading method to practice",
+        examples=[
+            "smooth blending",
+            "hatching lines",
+            "cross-hatching",
+            "stippling dots",
+        ],
+    ),
+    construction_visibility: str = Field(
+        default="clearly visible",
+        description="How visible construction lines should be",
+        examples=[
+            "clearly visible",
+            "lightly indicated",
+            "minimal guidelines",
+            "clean finished",
+        ],
+    ),
+    learning_objective: str = Field(
+        default="form and volume understanding",
+        description="Primary learning goal",
+        examples=[
+            "form and volume understanding",
+            "shading technique",
+            "construction method",
+            "spatial relationships",
+        ],
+    ),
+) -> dict[str, Any]:
+    """Generate basic shapes references for fundamental form study."""
+    return await _generate_from_template(
+        "shapes_study",
+        primary_shape=primary_shape,
+        secondary_shapes=secondary_shapes,
+        lighting_setup=lighting_setup,
+        light_direction=light_direction,
+        shading_technique=shading_technique,
+        construction_visibility=construction_visibility,
+        learning_objective=learning_objective,
+    )
+
+
+@mcp.prompt(
+    name="contour_drawing",
+    title="Contour Drawing Exercise",
+    description=(
+        "Generate clean contour line drawings for observation skill development. "
+        "Creates simplified line drawings focused on edges and form "
+        "relationships."
+    ),
+)
+async def contour_drawing(
+    subject: str = Field(
+        ...,
+        description="Subject for contour drawing practice",
+        examples=[
+            "still life object",
+            "plant with complex leaves",
+            "crumpled paper",
+            "hand in various positions",
+            "household object",
+        ]
+    ),
+    contour_type: str = Field(
+        default="modified blind",
+        description="Type of contour drawing technique",
+        examples=[
+            "blind contour",
+            "modified blind",
+            "pure contour",
+            "cross-contour",
+        ]
+    ),
+    line_weight: str = Field(
+        default="varied expressive",
+        description="Line weight approach",
+        examples=[
+            "consistent thin",
+            "varied expressive",
+            "bold confident",
+            "delicate precise",
+        ]
+    ),
+    observation_focus: str = Field(
+        default="edge relationships",
+        description="What to focus observation on",
+        examples=[
+            "edge relationships",
+            "form transitions",
+            "negative spaces",
+            "surface contours",
+        ]
+    ),
+    drawing_speed: str = Field(
+        default="slow deliberate",
+        description="Pace of drawing for different learning goals",
+        examples=[
+            "slow deliberate",
+            "moderate steady",
+            "quick gestural",
+            "varied rhythm",
+        ]
+    )
+) -> dict[str, Any]:
+    """Generate contour drawing references for observation practice."""
+    return await _generate_from_template(
+        "contour_drawing",
+        subject=subject,
+        contour_type=contour_type,
+        line_weight=line_weight,
+        observation_focus=observation_focus,
+        drawing_speed=drawing_speed
+    )
+
+
+@mcp.prompt(
+    name="value_study",
+    title="Value Study Exercise",
+    description=(
+        "Generate clean value study references for light and shadow practice. "
+        "Creates simplified drawings focused on value relationships and form "
+        "rendering."
+    ),
+)
+async def value_study(
+    subject: str = Field(
+        ...,
+        description="Subject for value study",
+        examples=[
+            "simple still life",
+            "single object with strong lighting",
+            "geometric forms",
+            "draped fabric",
+            "portrait head",
+        ]
+    ),
+    shading_method: str = Field(
+        default="smooth blending",
+        description="Shading technique approach",
+        examples=[
+            "smooth blending",
+            "hatching patterns",
+            "stippling dots",
+            "block shading",
+        ]
+    ),
+    light_source: str = Field(
+        default="single directional",
+        description="Lighting setup for value study",
+        examples=[
+            "single directional",
+            "soft window light",
+            "dramatic spot light",
+            "overcast diffused",
+        ]
+    ),
+    study_emphasis: str = Field(
+        default="form definition",
+        description="Primary focus of the value study",
+        examples=[
+            "form definition",
+            "light pattern",
+            "cast shadows",
+            "reflected light",
+            "value relationships",
+        ]
+    ),
+    simplification_level: str = Field(
+        default="moderate",
+        description="How simplified the study should be",
+        examples=[
+            "highly simplified",
+            "moderate detail",
+            "refined finish",
+            "quick study",
+        ]
+    ),
+) -> dict[str, Any]:
+    """Generate value study references for light and shadow practice."""
+    return await _generate_from_template(
+        "value_study",
+        subject=subject,
+        shading_method=shading_method,
+        light_source=light_source,
+        study_emphasis=study_emphasis,
+        simplification_level=simplification_level,
     )
 
 
