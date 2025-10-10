@@ -13,7 +13,7 @@ dependencies = [
     "pillow",
     "python-dotenv",
     "pydantic",
-    "httpx",
+    "httpx[socks]",
     "aiofiles",
     "aiohttp",
     "google-auth",

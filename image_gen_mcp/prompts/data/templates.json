@@ -300,7 +300,7 @@
       "name": "adaptive-pencil-drawing",
       "title": "Adaptive Pencil Drawing",
       "description": "Generate clear structural references for pencil drawing. Creates clean line art showing form, proportions, and construction - the kind of reference material artists actually search for and use.",
-      "category": "creative", 
+      "category": "drawing", 
       "version": "2.0",
       "template": "Clear structural reference of {subject}{composition_part}, {drawing_style} showing {form_clarity}, {complexity_level}, clean line art style, ideal for {study_type} reference",
       "parameters": {
