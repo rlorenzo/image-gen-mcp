@@ -353,7 +353,12 @@ async def health_check() -> dict[str, Any]:
                         result = await asyncio.wait_for(
                             provider.check_health(), timeout=10
                         )
-                        return provider.name, result["status"]
+                        status = result.get("status", "unhealthy")
+                        # Normalize to known values; providers return
+                        # "healthy"/"unhealthy", "degraded" is aggregate-only.
+                        if status not in ("healthy", "unhealthy"):
+                            status = "unhealthy"
+                        return provider.name, status
                     except Exception:
                         return provider.name, "unhealthy"
 

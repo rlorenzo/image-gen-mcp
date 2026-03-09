@@ -27,12 +27,13 @@ class OpenAIProvider(LLMProvider):
         supported_qualities=["auto", "high", "medium", "low"],
         supported_formats=["png", "jpeg", "webp"],
         max_images_per_request=1,
-        supports_style=False,
+        supports_style=True,
         supports_background=True,
         supports_compression=True,
         custom_parameters={
             "moderation": ["auto", "low"],
             "background": ["auto", "transparent", "opaque"],
+            "style": ["vivid", "natural"],
         },
     )
 
@@ -49,7 +50,7 @@ class OpenAIProvider(LLMProvider):
         "dall-e-3": ModelCapability(
             model_id="dall-e-3",
             supported_sizes=["1024x1024", "1792x1024", "1024x1792"],
-            supported_qualities=["hd", "standard"],
+            supported_qualities=["auto", "high"],
             supported_formats=["png"],
             max_images_per_request=1,
             supports_style=True,
@@ -62,7 +63,7 @@ class OpenAIProvider(LLMProvider):
         "dall-e-2": ModelCapability(
             model_id="dall-e-2",
             supported_sizes=["256x256", "512x512", "1024x1024"],
-            supported_qualities=["standard"],
+            supported_qualities=["auto"],
             supported_formats=["png"],
             max_images_per_request=10,
             supports_style=False,
