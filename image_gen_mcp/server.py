@@ -8,6 +8,7 @@ import argparse
 import asyncio
 import logging
 import sys
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -346,16 +347,20 @@ async def health_check() -> dict[str, Any]:
             if not providers:
                 providers_status = "unhealthy"
             else:
-                for provider in providers:
+
+                async def _check(provider):
                     try:
                         result = await asyncio.wait_for(
                             provider.check_health(), timeout=10
                         )
-                        provider_details[provider.name] = result["status"]
-                    except asyncio.TimeoutError:
-                        provider_details[provider.name] = "unhealthy"
+                        return provider.name, result["status"]
                     except Exception:
-                        provider_details[provider.name] = "unhealthy"
+                        return provider.name, "unhealthy"
+
+                results = await asyncio.gather(
+                    *(_check(p) for p in providers)
+                )
+                provider_details = dict(results)
 
                 if all(s == "healthy" for s in provider_details.values()):
                     providers_status = "healthy"
@@ -395,7 +400,7 @@ async def health_check() -> dict[str, Any]:
 
         return {
             "status": overall_status,
-            "timestamp": asyncio.get_event_loop().time(),
+            "timestamp": time.time(),
             "version": settings.server.version if settings else "unknown",
             "services": {
                 "providers": providers_status,
@@ -409,7 +414,7 @@ async def health_check() -> dict[str, Any]:
         logger.error(f"Health check failed: {e}")
         return {
             "status": "unhealthy",
-            "timestamp": asyncio.get_event_loop().time(),
+            "timestamp": time.time(),
             "error": str(e),
         }
 

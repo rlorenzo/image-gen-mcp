@@ -35,7 +35,7 @@ class GeminiProvider(LLMProvider):
         supports_background=False,
         supports_compression=True,
         custom_parameters={
-            "aspect_ratio": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "aspect_ratio": ["1:1", "3:2", "2:3", "3:4", "4:3", "9:16", "16:9"],
             "enhance_prompt": [True, False],
             "include_safety_attributes": [True, False],
         },
