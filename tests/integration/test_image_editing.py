@@ -57,7 +57,8 @@ class TestImageEditing:
 
     async def test_edit_image(self, editing_tool):
         """Smoke test: edit a single image to verify the pipeline works."""
-        image_files = list(Path("storage/images").rglob("*.png"))
+        project_storage = Path(__file__).parent.parent.parent / "storage"
+        image_files = list((project_storage / "images").rglob("*.png"))
         if not image_files:
             pytest.skip("No existing images found to edit")
 

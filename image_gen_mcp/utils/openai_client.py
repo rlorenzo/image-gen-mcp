@@ -101,31 +101,36 @@ class OpenAIClientManager:
     ) -> ImagesResponse:
         """Edit an image using OpenAI's Images API."""
 
+        from . import detect_image_mime
+
         # Convert base64 strings to bytes if needed
+        image_data_url = image_data if isinstance(image_data, str) and image_data.startswith("data:") else None
         if isinstance(image_data, str):
             if image_data.startswith("data:"):
-                # Handle data URLs
                 image_data = image_data.split(",", 1)[1]
             image_bytes = base64.b64decode(image_data)
         else:
             image_bytes = image_data
 
+        mask_data_url = None
         mask_bytes = None
         if mask_data:
             if isinstance(mask_data, str):
                 if mask_data.startswith("data:"):
+                    mask_data_url = mask_data
                     mask_data = mask_data.split(",", 1)[1]
                 mask_bytes = base64.b64decode(mask_data)
             else:
                 mask_bytes = mask_data
 
-        # Use SDK-supported upload tuples so the correct filename and
-        # Content-Type are sent for gpt-image models on the edit endpoint.
-        image_file = ("image.png", image_bytes, "image/png")
+        # Use SDK-supported upload tuples with correct filename/Content-Type.
+        img_name, img_mime = detect_image_mime(image_data_url, image_bytes)
+        image_file = (img_name, image_bytes, img_mime)
 
         mask_file = None
         if mask_bytes:
-            mask_file = ("mask.png", mask_bytes, "image/png")
+            mask_name, mask_mime = detect_image_mime(mask_data_url, mask_bytes)
+            mask_file = (mask_name, mask_bytes, mask_mime)
 
         # The /v1/images/edits endpoint supports gpt-image-1.5, gpt-image-1, dall-e-2.
         request_params = {
