@@ -200,7 +200,7 @@ class GeminiProvider(LLMProvider):
     ) -> ImageResponse:
         """Generate image using Google's native Generative AI API."""
 
-        # Accept both "imagen-4" and "imagen_4" for backward compatibility
+        # Normalize model IDs so internal lookups use dash-separated form
         normalized_model = model.replace("_", "-")
         if normalized_model not in self.SUPPORTED_MODELS:
             raise ProviderError(

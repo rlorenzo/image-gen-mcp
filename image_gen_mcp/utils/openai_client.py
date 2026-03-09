@@ -1,7 +1,6 @@
 """OpenAI API client manager with retry logic and error handling."""
 
 import base64
-import io
 import logging
 from typing import Any
 
@@ -120,15 +119,13 @@ class OpenAIClientManager:
             else:
                 mask_bytes = mask_data
 
-        # Wrap bytes in a named file-like object so the SDK sends the correct
-        # Content-Type (workaround for gpt-image models on the edit endpoint).
-        image_file = io.BytesIO(image_bytes)
-        image_file.name = "image.png"
+        # Use SDK-supported upload tuples so the correct filename and
+        # Content-Type are sent for gpt-image models on the edit endpoint.
+        image_file = ("image.png", image_bytes, "image/png")
 
         mask_file = None
         if mask_bytes:
-            mask_file = io.BytesIO(mask_bytes)
-            mask_file.name = "mask.png"
+            mask_file = ("mask.png", mask_bytes, "image/png")
 
         # The /v1/images/edits endpoint supports gpt-image-1.5, gpt-image-1, dall-e-2.
         request_params = {

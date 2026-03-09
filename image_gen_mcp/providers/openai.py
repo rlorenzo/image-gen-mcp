@@ -1,7 +1,6 @@
 """OpenAI provider implementation."""
 
 import base64
-import io
 import logging
 from typing import Any
 
@@ -232,15 +231,13 @@ class OpenAIProvider(LLMProvider):
             else:
                 mask_bytes = mask_data
 
-        # Wrap bytes in named file-like objects so the SDK sends
-        # the correct Content-Type for gpt-image models.
-        image_file = io.BytesIO(image_bytes)
-        image_file.name = "image.png"
+        # Use SDK-supported upload tuples so the correct filename and
+        # Content-Type are sent for gpt-image models.
+        image_file = ("image.png", image_bytes, "image/png")
 
         mask_file = None
         if mask_bytes:
-            mask_file = io.BytesIO(mask_bytes)
-            mask_file.name = "mask.png"
+            mask_file = ("mask.png", mask_bytes, "image/png")
 
         # Build request parameters
         request_params = {
