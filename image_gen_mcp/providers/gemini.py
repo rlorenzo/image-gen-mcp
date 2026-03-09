@@ -25,40 +25,39 @@ class GeminiProvider(LLMProvider):
     """Gemini provider for image generation using Imagen models via
     OpenAI compatibility."""
 
+    # Shared capabilities for Imagen 4 family models
+    _IMAGEN_4_CAPABILITY = dict(
+        supported_sizes=["1024x1024", "1536x1024", "1024x1536"],
+        supported_qualities=["auto", "high", "medium", "low"],
+        supported_formats=["png", "jpeg", "webp"],
+        max_images_per_request=1,
+        supports_style=False,  # Imagen uses different style approach
+        supports_background=False,
+        supports_compression=True,
+        custom_parameters={
+            "aspect_ratio": ["1:1", "3:4", "4:3", "9:16", "16:9"],
+            "enhance_prompt": [True, False],
+            "include_safety_attributes": [True, False],
+        },
+    )
+
     # Supported Imagen models and their capabilities
     SUPPORTED_MODELS = {
-        # NOTE: 'imagen-4.0-generate-preview-06-06' is a preview version
-        # and may be deprecated in the future.
-        "imagen_4": ModelCapability(
+        "imagen-4": ModelCapability(
             model_id="imagen-4.0-generate-preview-06-06",
-            supported_sizes=["1024x1024", "1536x1024", "1024x1536"],
-            supported_qualities=["auto", "high", "medium", "low"],
-            supported_formats=["png", "jpeg", "webp"],
-            max_images_per_request=1,
-            supports_style=False,  # Imagen uses different style approach
-            supports_background=False,
-            supports_compression=True,
-            custom_parameters={
-                "aspect_ratio": ["1:1", "3:4", "4:3", "9:16", "16:9"],
-                "enhance_prompt": [True, False],
-                "include_safety_attributes": [True, False],
-            },
+            **_IMAGEN_4_CAPABILITY,
+        ),
+        "imagen-4-ultra": ModelCapability(
+            model_id="imagen-4.0-ultra-generate-exp-05-20",
+            **_IMAGEN_4_CAPABILITY,
+        ),
+        "imagen-4-fast": ModelCapability(
+            model_id="imagen-4.0-fast-generate-exp-05-20",
+            **_IMAGEN_4_CAPABILITY,
         ),
         "imagen-3": ModelCapability(
             model_id="imagen-3.0-generate-002",
-            supported_sizes=["1024x1024", "1536x1024", "1024x1536"],
-            supported_qualities=["auto", "high", "medium", "low"],
-            supported_formats=["png", "jpeg", "webp"],
-            max_images_per_request=1,  # Imagen 4 Ultra can only generate
-            # one image at a time
-            supports_style=False,
-            supports_background=False,
-            supports_compression=True,
-            custom_parameters={
-                "aspect_ratio": ["1:1", "3:4", "4:3", "9:16", "16:9"],
-                "enhance_prompt": [True, False],
-                "include_safety_attributes": [True, False],
-            },
+            **_IMAGEN_4_CAPABILITY,
         ),
     }
 
@@ -116,13 +115,10 @@ class GeminiProvider(LLMProvider):
 
         # Verify it's actually a file (not a directory)
         if not os.path.isfile(resolved_path):
-            raise ValueError(
-                f"Credentials path is not a file: {resolved_path}"
-            )
+            raise ValueError(f"Credentials path is not a file: {resolved_path}")
 
         self.credentials = service_account.Credentials.from_service_account_file(
-            resolved_path,
-            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+            resolved_path, scopes=["https://www.googleapis.com/auth/cloud-platform"]
         )
 
         # Extract project ID from credentials using the validated path
@@ -138,7 +134,7 @@ class GeminiProvider(LLMProvider):
                     "maliciously large file."
                 )
 
-            with open(resolved_path, encoding='utf-8') as f:
+            with open(resolved_path, encoding="utf-8") as f:
                 try:
                     cred_data = json.load(f)
                 except json.JSONDecodeError as e:
@@ -148,11 +144,10 @@ class GeminiProvider(LLMProvider):
                         "contains valid JSON credentials."
                     ) from e
 
-                self.project_id = cred_data.get('project_id')
+                self.project_id = cred_data.get("project_id")
                 if not self.project_id:
                     available_keys = (
-                        list(cred_data.keys()) if isinstance(cred_data, dict)
-                        else "N/A"
+                        list(cred_data.keys()) if isinstance(cred_data, dict) else "N/A"
                     )
                     raise ValueError(
                         f"'project_id' field not found in service account file "
@@ -171,6 +166,7 @@ class GeminiProvider(LLMProvider):
                 f"Permission denied reading service account file "
                 f"'{resolved_path}': {e}. Please check file permissions."
             ) from e
+
     def get_supported_models(self) -> set[str]:
         """Return set of supported Gemini model IDs."""
         return set(self.SUPPORTED_MODELS.keys())
@@ -205,7 +201,7 @@ class GeminiProvider(LLMProvider):
         """Generate image using Google's native Generative AI API."""
 
         # Accept both "imagen-4" and "imagen_4" for backward compatibility
-        normalized_model = model.replace("-", "_")
+        normalized_model = model.replace("_", "-")
         if normalized_model not in self.SUPPORTED_MODELS:
             raise ProviderError(
                 f"Model '{model}' is not supported by Gemini provider",
@@ -214,12 +210,7 @@ class GeminiProvider(LLMProvider):
             )
 
         # Build request for Vertex AI Imagen API
-        request_body = {
-            "instances": [{
-                "prompt": prompt
-            }],
-            "parameters": {}
-        }
+        request_body = {"instances": [{"prompt": prompt}], "parameters": {}}
 
         # Add aspect ratio if size is specified
         if size != "auto":
@@ -237,7 +228,7 @@ class GeminiProvider(LLMProvider):
         self.credentials.refresh(Request())
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.credentials.token}"
+            "Authorization": f"Bearer {self.credentials.token}",
         }
 
         try:
@@ -375,6 +366,31 @@ class GeminiProvider(LLMProvider):
             error_code="FEATURE_NOT_SUPPORTED",
         )
 
+    async def check_health(self) -> dict[str, Any]:
+        """Ping Vertex AI using a free model metadata endpoint."""
+        try:
+            self.credentials.refresh(Request())
+            url = (
+                f"{self.base_url}/projects/{self.project_id}/locations/us-central1/"
+                f"publishers/google/models/imagen-3.0-generate-002"
+            )
+            headers = {
+                "Authorization": f"Bearer {self.credentials.token}",
+            }
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, headers=headers) as response:
+                    if response.status == 200:
+                        return {"status": "healthy"}
+                    error_text = await response.text()
+                    return {
+                        "status": "unhealthy",
+                        "error": f"HTTP {response.status}: {error_text[:200]}",
+                    }
+        except Exception as e:
+            self._logger.warning(f"Gemini health check failed: {e}")
+            return {"status": "unhealthy", "error": str(e)}
+
     def validate_model_params(
         self, model: str, params: dict[str, Any]
     ) -> dict[str, Any]:
@@ -406,7 +422,8 @@ class GeminiProvider(LLMProvider):
                 )
 
         # Validate image count for Imagen 4 Ultra
-        if model == "imagen-4-ultra" and params.get("n", 1) > 1:
+        normalized = model.replace("_", "-")
+        if normalized == "imagen-4-ultra" and params.get("n", 1) > 1:
             params["n"] = 1
             self._logger.warning(
                 "Imagen 4 Ultra only supports generating 1 image at a time"
@@ -428,13 +445,19 @@ class GeminiProvider(LLMProvider):
     ) -> dict[str, Any]:
         """Estimate cost for Gemini image generation."""
 
-        # Gemini/Imagen pricing (as of 2024)
+        # Gemini/Imagen pricing (as of 2025)
         pricing = {
             "imagen_4": {
-                "cost_per_image": 0.04,  # Higher cost for latest model (estimated)
+                "cost_per_image": 0.04,
+            },
+            "imagen_4_ultra": {
+                "cost_per_image": 0.06,
+            },
+            "imagen_4_fast": {
+                "cost_per_image": 0.02,
             },
             "imagen_3": {
-                "cost_per_image": 0.02,  # Lower cost for older model (estimated)
+                "cost_per_image": 0.02,
             },
         }
 

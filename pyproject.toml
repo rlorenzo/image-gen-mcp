@@ -63,6 +63,11 @@ disallow_untyped_defs = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "integration: marks tests that make real API calls (skipped by default, use --run-integration)",
+    "slow: marks slow-running tests",
+    "unit: marks unit tests",
+]
 
 [dependency-groups]
 dev = [

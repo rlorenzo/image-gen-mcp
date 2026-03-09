@@ -10,7 +10,7 @@
     "Enhanced Prompt Following: Designed for outputs highly aligned with text prompts"
   ],
   "pricing": {
-    "image_generation": "$0.08 per image (estimated)",
+    "image_generation": "$0.06 per image",
     "currency": "USD",
     "note": "Premium pricing for ultra-quality model"
   },

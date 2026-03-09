@@ -133,7 +133,7 @@ class ProvidersSettings(BaseModel):
 class ImageSettings(BaseModel):
     """Image generation default settings."""
 
-    default_model: str = Field("gpt-image-1", description="Default image model")
+    default_model: str = Field("gpt-image-1.5", description="Default image model")
     default_quality: Literal["auto", "high", "medium", "low"] = Field(
         "auto", description="Default quality"
     )

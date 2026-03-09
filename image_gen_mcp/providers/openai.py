@@ -1,6 +1,7 @@
 """OpenAI provider implementation."""
 
 import base64
+import io
 import logging
 from typing import Any
 
@@ -21,22 +22,31 @@ logger = logging.getLogger(__name__)
 class OpenAIProvider(LLMProvider):
     """OpenAI provider for image generation using gpt-image-1 and DALL-E models."""
 
+    # Shared capabilities for gpt-image-1 family models
+    _GPT_IMAGE_CAPABILITY = dict(
+        supported_sizes=["auto", "1024x1024", "1536x1024", "1024x1536"],
+        supported_qualities=["auto", "high", "medium", "low"],
+        supported_formats=["png", "jpeg", "webp"],
+        max_images_per_request=1,
+        supports_style=False,
+        supports_background=True,
+        supports_compression=True,
+        custom_parameters={
+            "moderation": ["auto", "low"],
+            "background": ["auto", "transparent", "opaque"],
+        },
+    )
+
     # Supported models and their capabilities
     SUPPORTED_MODELS = {
         "gpt-image-1": ModelCapability(
             model_id="gpt-image-1",
-            supported_sizes=["auto", "1024x1024", "1536x1024", "1024x1536"],
-            supported_qualities=["auto", "high", "medium", "low"],
-            supported_formats=["png", "jpeg", "webp"],
-            max_images_per_request=1,
-            supports_style=False,
-            supports_background=True,
-            supports_compression=True,
-            custom_parameters={
-                "moderation": ["auto", "low"],
-                "background": ["auto", "transparent", "opaque"],
-            },
-        )
+            **_GPT_IMAGE_CAPABILITY,
+        ),
+        "gpt-image-1.5": ModelCapability(
+            model_id="gpt-image-1.5",
+            **_GPT_IMAGE_CAPABILITY,
+        ),
     }
 
     def __init__(self, config: ProviderConfig):
@@ -93,7 +103,7 @@ class OpenAIProvider(LLMProvider):
         # Map quality parameter based on model
         if model == "dall-e-3":
             request_params["quality"] = "hd" if quality == "high" else "standard"
-        elif model == "gpt-image-1":
+        elif model.startswith("gpt-image-"):
             request_params["quality"] = quality
             request_params["moderation"] = moderation
 
@@ -110,8 +120,8 @@ class OpenAIProvider(LLMProvider):
         if capabilities.supports_style:
             request_params["style"] = style
 
-        # Add gpt-image-1 specific parameters
-        if model == "gpt-image-1":
+        # Add gpt-image-1 family specific parameters
+        if model.startswith("gpt-image-"):
             request_params.update(
                 {
                     "output_format": output_format,
@@ -222,16 +232,27 @@ class OpenAIProvider(LLMProvider):
             else:
                 mask_bytes = mask_data
 
+        # Wrap bytes in named file-like objects so the SDK sends
+        # the correct Content-Type for gpt-image models.
+        image_file = io.BytesIO(image_bytes)
+        image_file.name = "image.png"
+
+        mask_file = None
+        if mask_bytes:
+            mask_file = io.BytesIO(mask_bytes)
+            mask_file.name = "mask.png"
+
         # Build request parameters
         request_params = {
             "model": model,
-            "image": image_bytes,
+            "image": image_file,
             "prompt": prompt,
             "n": min(n, capabilities.max_images_per_request),
+            "quality": quality,
         }
 
-        if mask_bytes:
-            request_params["mask"] = mask_bytes
+        if mask_file:
+            request_params["mask"] = mask_file
 
         # Add size parameter
         if size in capabilities.supported_sizes:
@@ -239,17 +260,10 @@ class OpenAIProvider(LLMProvider):
         else:
             request_params["size"] = capabilities.supported_sizes[0]
 
-        # Add gpt-image-1 specific parameters
-        if model == "gpt-image-1":
-            request_params.update(
-                {
-                    "quality": quality,
-                    "output_format": output_format,
-                    "background": background,
-                }
-            )
-
-            # Add compression for JPEG/WebP
+        # Add gpt-image-1 family specific parameters
+        if model.startswith("gpt-image-"):
+            request_params["output_format"] = output_format
+            request_params["background"] = background
             if output_format in ["jpeg", "webp"] and compression < 100:
                 request_params["output_compression"] = compression
 
@@ -297,6 +311,15 @@ class OpenAIProvider(LLMProvider):
                 error_code="EDITING_FAILED",
             )
 
+    async def check_health(self) -> dict[str, Any]:
+        """Ping OpenAI API using the free GET /v1/models endpoint."""
+        try:
+            models = await self.client.models.list()
+            return {"status": "healthy", "models_available": len(models.data)}
+        except Exception as e:
+            self._logger.warning(f"OpenAI health check failed: {e}")
+            return {"status": "unhealthy", "error": str(e)}
+
     async def _download_image(self, image_url: str) -> bytes:
         """Download image from URL (for DALL-E models that return URLs)."""
         try:
@@ -316,11 +339,16 @@ class OpenAIProvider(LLMProvider):
     ) -> dict[str, Any]:
         """Estimate cost for OpenAI image generation."""
 
-        # OpenAI pricing (as of 2024)
+        # OpenAI pricing
         pricing = {
             "gpt-image-1": {
                 "text_input_per_1m_tokens": 5.0,
                 "image_output_per_1m_tokens": 40.0,
+                "tokens_per_image": 1750,
+            },
+            "gpt-image-1.5": {
+                "text_input_per_1m_tokens": 4.0,
+                "image_output_per_1m_tokens": 32.0,
                 "tokens_per_image": 1750,
             },
             "dall-e-3": {
@@ -336,7 +364,7 @@ class OpenAIProvider(LLMProvider):
 
         model_pricing = pricing[model]
 
-        if model == "gpt-image-1":
+        if model.startswith("gpt-image-"):
             # Token-based pricing
             text_tokens = len(prompt.split()) * 1.3  # Rough approximation
             text_cost = (text_tokens / 1_000_000) * model_pricing[

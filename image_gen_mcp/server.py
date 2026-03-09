@@ -337,13 +337,34 @@ async def health_check() -> dict[str, Any]:
     server_ctx = mcp.get_context().request_context.lifespan_context
 
     try:
-        # Check OpenAI client
-        openai_status = "healthy"
+        # Check providers by pinging their APIs (free endpoints)
+        provider_details = {}
         try:
-            # Simple test - this doesn't make an API call
-            _ = server_ctx.openai_client.client
+            await server_ctx.image_generation_tool._ensure_providers_registered()
+            registry = server_ctx.image_generation_tool.provider_registry
+            providers = registry.get_all_providers()
+            if not providers:
+                providers_status = "unhealthy"
+            else:
+                for provider in providers:
+                    try:
+                        result = await asyncio.wait_for(
+                            provider.check_health(), timeout=10
+                        )
+                        provider_details[provider.name] = result["status"]
+                    except asyncio.TimeoutError:
+                        provider_details[provider.name] = "unhealthy"
+                    except Exception:
+                        provider_details[provider.name] = "unhealthy"
+
+                if all(s == "healthy" for s in provider_details.values()):
+                    providers_status = "healthy"
+                elif any(s == "healthy" for s in provider_details.values()):
+                    providers_status = "degraded"
+                else:
+                    providers_status = "unhealthy"
         except Exception:
-            openai_status = "unhealthy"
+            providers_status = "unhealthy"
 
         # Check storage
         storage_status = "healthy"
@@ -361,24 +382,27 @@ async def health_check() -> dict[str, Any]:
         except Exception:
             cache_status = "unhealthy"
 
-        overall_status = (
-            "healthy"
-            if all(
-                status in ["healthy", "disabled"]
-                for status in [openai_status, storage_status, cache_status]
-            )
-            else "degraded"
-        )
+        # No healthy providers means the server is useless
+        if providers_status == "unhealthy":
+            overall_status = "unhealthy"
+        elif all(
+            status in ["healthy", "disabled"]
+            for status in [providers_status, storage_status, cache_status]
+        ):
+            overall_status = "healthy"
+        else:
+            overall_status = "degraded"
 
         return {
             "status": overall_status,
             "timestamp": asyncio.get_event_loop().time(),
             "version": settings.server.version if settings else "unknown",
             "services": {
-                "openai": openai_status,
+                "providers": providers_status,
                 "storage": storage_status,
                 "cache": cache_status,
             },
+            "provider_details": provider_details,
         }
 
     except Exception as e:
@@ -662,10 +686,8 @@ async def list_available_models() -> dict[str, Any]:
                 )
             )
             if model_info:
-                provider = (
-                    server_ctx.image_generation_tool.provider_registry
-                    .get_provider_for_model(model_id)
-                )
+                registry = server_ctx.image_generation_tool.provider_registry
+                provider = registry.get_provider_for_model(model_id)
                 cost_estimate = (
                     provider.estimate_cost(model_id, "sample prompt", 1)
                     if provider
@@ -720,9 +742,7 @@ async def list_available_models() -> dict[str, Any]:
     mime_type="text/plain",
 )
 async def get_generated_image(
-    image_id: str = Field(
-        ..., description="Unique image identifier"
-    ),
+    image_id: str = Field(..., description="Unique image identifier"),
 ) -> str:
     """Access a generated image by its unique ID."""
     ctx = mcp.get_context()
@@ -1341,8 +1361,7 @@ async def pencil_drawing(
     subject: str = Field(
         ...,
         description=(
-            "What you want to draw - creates clear structural reference "
-            "material"
+            "What you want to draw - creates clear structural reference material"
         ),
         examples=[
             "cat",
@@ -1353,12 +1372,12 @@ async def pencil_drawing(
             "draped fabric",
             "tree",
             "portrait head",
-        ]
+        ],
     ),
     complexity_level: str = Field(
         default="moderate",
         description="Amount of structural detail to show",
-        examples=["simple", "moderate", "detailed", "complex"]
+        examples=["simple", "moderate", "detailed", "complex"],
     ),
     study_type: str = Field(
         default="observational",
@@ -1435,7 +1454,7 @@ async def gesture_drawing(
             "animal running",
             "person sitting",
             "tree in wind",
-        ]
+        ],
     ),
     line_quality: str = Field(
         default="flowing expressive",
@@ -1445,7 +1464,7 @@ async def gesture_drawing(
             "bold confident",
             "loose gestural",
             "varied weight",
-        ]
+        ],
     ),
     capture_focus: str = Field(
         default="overall movement and energy",
@@ -1455,7 +1474,7 @@ async def gesture_drawing(
             "weight and balance",
             "rhythm and flow",
             "proportional relationships",
-        ]
+        ],
     ),
     construction_visibility: str = Field(
         default="subtle",
@@ -1465,7 +1484,7 @@ async def gesture_drawing(
             "subtle underlying",
             "minimal structural",
             "no construction lines",
-        ]
+        ],
     ),
     movement_emphasis: str = Field(
         default="natural flow",
@@ -1475,7 +1494,7 @@ async def gesture_drawing(
             "natural flow",
             "weight shift",
             "directional force",
-        ]
+        ],
     ),
 ) -> dict[str, Any]:
     """Generate gesture drawing references for movement and essence practice."""
@@ -1601,7 +1620,7 @@ async def contour_drawing(
             "crumpled paper",
             "hand in various positions",
             "household object",
-        ]
+        ],
     ),
     contour_type: str = Field(
         default="modified blind",
@@ -1611,7 +1630,7 @@ async def contour_drawing(
             "modified blind",
             "pure contour",
             "cross-contour",
-        ]
+        ],
     ),
     line_weight: str = Field(
         default="varied expressive",
@@ -1621,7 +1640,7 @@ async def contour_drawing(
             "varied expressive",
             "bold confident",
             "delicate precise",
-        ]
+        ],
     ),
     observation_focus: str = Field(
         default="edge relationships",
@@ -1631,7 +1650,7 @@ async def contour_drawing(
             "form transitions",
             "negative spaces",
             "surface contours",
-        ]
+        ],
     ),
     drawing_speed: str = Field(
         default="slow deliberate",
@@ -1641,8 +1660,8 @@ async def contour_drawing(
             "moderate steady",
             "quick gestural",
             "varied rhythm",
-        ]
-    )
+        ],
+    ),
 ) -> dict[str, Any]:
     """Generate contour drawing references for observation practice."""
     return await _generate_from_template(
@@ -1651,7 +1670,7 @@ async def contour_drawing(
         contour_type=contour_type,
         line_weight=line_weight,
         observation_focus=observation_focus,
-        drawing_speed=drawing_speed
+        drawing_speed=drawing_speed,
     )
 
 
@@ -1674,7 +1693,7 @@ async def value_study(
             "geometric forms",
             "draped fabric",
             "portrait head",
-        ]
+        ],
     ),
     shading_method: str = Field(
         default="smooth blending",
@@ -1684,7 +1703,7 @@ async def value_study(
             "hatching patterns",
             "stippling dots",
             "block shading",
-        ]
+        ],
     ),
     light_source: str = Field(
         default="single directional",
@@ -1694,7 +1713,7 @@ async def value_study(
             "soft window light",
             "dramatic spot light",
             "overcast diffused",
-        ]
+        ],
     ),
     study_emphasis: str = Field(
         default="form definition",
@@ -1705,7 +1724,7 @@ async def value_study(
             "cast shadows",
             "reflected light",
             "value relationships",
-        ]
+        ],
     ),
     simplification_level: str = Field(
         default="moderate",
@@ -1715,7 +1734,7 @@ async def value_study(
             "moderate detail",
             "refined finish",
             "quick study",
-        ]
+        ],
     ),
 ) -> dict[str, Any]:
     """Generate value study references for light and shadow practice."""

@@ -77,7 +77,7 @@ def mock_cache_settings():
 def mock_image_settings():
     """Mock image settings for testing."""
     return ImageSettings(
-        default_model="gpt-image-1",
+        default_model="gpt-image-1.5",
         default_quality="auto",
         default_size="1024x1024",
         default_style="vivid",
@@ -239,11 +239,28 @@ def event_loop():
     loop.close()
 
 
-def pytest_configure(config):
-    """Configure pytest with custom markers."""
-    config.addinivalue_line("markers", "integration: mark test as integration test")
-    config.addinivalue_line("markers", "unit: mark test as unit test")
-    config.addinivalue_line("markers", "slow: mark test as slow running")
+def pytest_addoption(parser):
+    """Add custom CLI options."""
+    parser.addoption(
+        "--run-integration",
+        action="store_true",
+        default=False,
+        help="Run integration tests that make real API calls (costs money)",
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    """Skip integration tests unless --run-integration is passed."""
+    if config.getoption("--run-integration"):
+        return
+    skip_integration = pytest.mark.skip(
+        reason="Skipped by default (uses real API credits). "
+        "Use --run-integration to run."
+    )
+    for item in items:
+        marker = item.get_closest_marker("integration")
+        if marker is not None:
+            item.add_marker(skip_integration)
 
 
 @pytest.fixture
