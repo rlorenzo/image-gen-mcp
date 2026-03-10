@@ -78,7 +78,7 @@ class TestHealthCheck:
         assert result["services"]["providers"] == "healthy"
         assert result["services"]["storage"] == "healthy"
         assert result["services"]["cache"] == "healthy"
-        assert result["provider_details"]["openai"] == "healthy"
+        assert result["provider_details"]["openai"]["status"] == "healthy"
         assert "timestamp" in result
         assert result["version"] == "1.0.0-test"
 
@@ -98,7 +98,8 @@ class TestHealthCheck:
 
         assert result["status"] == "unhealthy"
         assert result["services"]["providers"] == "unhealthy"
-        assert result["provider_details"]["openai"] == "unhealthy"
+        assert result["provider_details"]["openai"]["status"] == "unhealthy"
+        assert "error" in result["provider_details"]["openai"]
 
     async def test_degraded_when_one_provider_down(self):
         """Health check returns degraded when one of multiple providers is down."""
@@ -111,8 +112,8 @@ class TestHealthCheck:
 
         assert result["status"] == "degraded"
         assert result["services"]["providers"] == "degraded"
-        assert result["provider_details"]["openai"] == "healthy"
-        assert result["provider_details"]["gemini"] == "unhealthy"
+        assert result["provider_details"]["openai"]["status"] == "healthy"
+        assert result["provider_details"]["gemini"]["status"] == "unhealthy"
 
     async def test_degraded_when_storage_missing(self):
         """Health check returns degraded when storage path doesn't exist."""
@@ -151,7 +152,7 @@ class TestHealthCheck:
         server_ctx = self._build_server_context(providers=[slow_provider])
         result = await self._run_health_check(server_ctx)
 
-        assert result["provider_details"]["openai"] == "unhealthy"
+        assert result["provider_details"]["openai"]["status"] == "unhealthy"
         assert result["status"] == "unhealthy"
 
     async def test_provider_exception_returns_unhealthy(self):

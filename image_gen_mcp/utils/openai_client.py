@@ -1,6 +1,5 @@
 """OpenAI API client manager with retry logic and error handling."""
 
-import base64
 import logging
 from typing import Any
 
@@ -101,36 +100,14 @@ class OpenAIClientManager:
     ) -> ImagesResponse:
         """Edit an image using OpenAI's Images API."""
 
-        from . import detect_image_mime
+        from . import prepare_image_upload
 
-        # Convert base64 strings to bytes if needed
-        image_data_url = image_data if isinstance(image_data, str) and image_data.startswith("data:") else None
-        if isinstance(image_data, str):
-            if image_data.startswith("data:"):
-                image_data = image_data.split(",", 1)[1]
-            image_bytes = base64.b64decode(image_data)
-        else:
-            image_bytes = image_data
-
-        mask_data_url = None
-        mask_bytes = None
-        if mask_data:
-            if isinstance(mask_data, str):
-                if mask_data.startswith("data:"):
-                    mask_data_url = mask_data
-                    mask_data = mask_data.split(",", 1)[1]
-                mask_bytes = base64.b64decode(mask_data)
-            else:
-                mask_bytes = mask_data
-
-        # Use SDK-supported upload tuples with correct filename/Content-Type.
-        img_name, img_mime = detect_image_mime(image_data_url, image_bytes)
-        image_file = (img_name, image_bytes, img_mime)
+        # Decode inputs and build SDK upload tuples.
+        _, _, image_file = prepare_image_upload(image_data)
 
         mask_file = None
-        if mask_bytes:
-            mask_name, mask_mime = detect_image_mime(mask_data_url, mask_bytes)
-            mask_file = (mask_name, mask_bytes, mask_mime)
+        if mask_data:
+            _, _, mask_file = prepare_image_upload(mask_data)
 
         # The /v1/images/edits endpoint supports gpt-image-1.5, gpt-image-1, dall-e-2.
         request_params = {
@@ -139,7 +116,6 @@ class OpenAIClientManager:
             "prompt": prompt,
             "n": n,
             "size": size,
-            "quality": quality,
         }
 
         if mask_file:
@@ -147,6 +123,7 @@ class OpenAIClientManager:
 
         # Add gpt-image-1 family specific parameters
         if model.startswith("gpt-image-"):
+            request_params["quality"] = quality
             request_params["output_format"] = output_format
             request_params["background"] = background
             if output_format in ["jpeg", "webp"] and compression < 100:

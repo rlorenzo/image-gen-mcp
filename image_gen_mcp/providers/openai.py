@@ -27,13 +27,12 @@ class OpenAIProvider(LLMProvider):
         supported_qualities=["auto", "high", "medium", "low"],
         supported_formats=["png", "jpeg", "webp"],
         max_images_per_request=1,
-        supports_style=True,
+        supports_style=False,
         supports_background=True,
         supports_compression=True,
         custom_parameters={
             "moderation": ["auto", "low"],
             "background": ["auto", "transparent", "opaque"],
-            "style": ["vivid", "natural"],
         },
     )
 
@@ -125,9 +124,12 @@ class OpenAIProvider(LLMProvider):
         }
 
         # Map quality parameter based on model
-        if model.startswith("dall-e"):
-            request_params["quality"] = "hd" if quality == "high" else "standard"
-        else:
+        if model == "dall-e-3":
+            request_params["quality"] = (
+                "hd" if quality == "high" else "standard"
+            )
+        elif not model.startswith("dall-e"):
+            # gpt-image models use the quality value directly
             request_params["quality"] = quality
             request_params["moderation"] = moderation
 
@@ -233,36 +235,14 @@ class OpenAIProvider(LLMProvider):
 
         capabilities = self.SUPPORTED_MODELS[model]
 
-        from ..utils import detect_image_mime
+        from ..utils import prepare_image_upload
 
-        # Convert base64 strings to bytes if needed
-        image_data_url = image_data if isinstance(image_data, str) and image_data.startswith("data:") else None
-        if isinstance(image_data, str):
-            if image_data.startswith("data:"):
-                image_data = image_data.split(",", 1)[1]
-            image_bytes = base64.b64decode(image_data)
-        else:
-            image_bytes = image_data
-
-        mask_data_url = None
-        mask_bytes = None
-        if mask_data:
-            if isinstance(mask_data, str):
-                if mask_data.startswith("data:"):
-                    mask_data_url = mask_data
-                    mask_data = mask_data.split(",", 1)[1]
-                mask_bytes = base64.b64decode(mask_data)
-            else:
-                mask_bytes = mask_data
-
-        # Use SDK-supported upload tuples with correct filename/Content-Type.
-        img_name, img_mime = detect_image_mime(image_data_url, image_bytes)
-        image_file = (img_name, image_bytes, img_mime)
+        # Decode inputs and build SDK upload tuples.
+        _, _, image_file = prepare_image_upload(image_data)
 
         mask_file = None
-        if mask_bytes:
-            mask_name, mask_mime = detect_image_mime(mask_data_url, mask_bytes)
-            mask_file = (mask_name, mask_bytes, mask_mime)
+        if mask_data:
+            _, _, mask_file = prepare_image_upload(mask_data)
 
         # Build request parameters
         request_params = {
@@ -270,7 +250,6 @@ class OpenAIProvider(LLMProvider):
             "image": image_file,
             "prompt": prompt,
             "n": min(n, capabilities.max_images_per_request),
-            "quality": quality,
         }
 
         if mask_file:
@@ -284,6 +263,7 @@ class OpenAIProvider(LLMProvider):
 
         # Add gpt-image-1 family specific parameters
         if model.startswith("gpt-image-"):
+            request_params["quality"] = quality
             request_params["output_format"] = output_format
             request_params["background"] = background
             if output_format in ["jpeg", "webp"] and compression < 100:
@@ -337,7 +317,20 @@ class OpenAIProvider(LLMProvider):
         """Ping OpenAI API using the free GET /v1/models endpoint."""
         try:
             models = await self.client.models.list()
-            return {"status": "healthy", "models_available": len(models.data)}
+            supported = set(self.SUPPORTED_MODELS.keys())
+            image_models = [
+                m.id for m in models.data if m.id in supported
+            ]
+            if not image_models:
+                return {
+                    "status": "unhealthy",
+                    "error": "No supported image models available for current credentials",
+                    "models_available": [],
+                }
+            return {
+                "status": "healthy",
+                "models_available": image_models,
+            }
         except Exception as e:
             self._logger.warning(f"OpenAI health check failed: {e}")
             return {"status": "unhealthy", "error": str(e)}

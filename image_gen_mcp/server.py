@@ -241,6 +241,22 @@ async def server_lifespan(server: FastMCP) -> AsyncIterator[ServerContext]:
         except asyncio.CancelledError:
             pass
 
+        # Close providers that hold resources (e.g. httpx clients)
+        try:
+            registry = image_generation_tool.provider_registry
+            for provider in registry.get_all_providers():
+                if hasattr(provider, "close"):
+                    await provider.close()
+            # Also close any providers that were never registered
+            # (e.g. if shutdown occurs before any generation request)
+            for provider in getattr(
+                image_generation_tool, "_pending_providers", []
+            ):
+                if hasattr(provider, "close"):
+                    await provider.close()
+        except Exception:
+            pass
+
         # Close services
         await asyncio.gather(
             cache_manager.close(), storage_manager.close(), return_exceptions=True
@@ -358,18 +374,25 @@ async def health_check() -> dict[str, Any]:
                         # "healthy"/"unhealthy", "degraded" is aggregate-only.
                         if status not in ("healthy", "unhealthy"):
                             status = "unhealthy"
-                        return provider.name, status
-                    except Exception:
-                        return provider.name, "unhealthy"
+                        result["status"] = status
+                        return provider.name, result
+                    except Exception as e:
+                        return provider.name, {
+                            "status": "unhealthy",
+                            "error": str(e),
+                        }
 
                 results = await asyncio.gather(
                     *(_check(p) for p in providers)
                 )
                 provider_details = dict(results)
 
-                if all(s == "healthy" for s in provider_details.values()):
+                statuses = [
+                    d["status"] for d in provider_details.values()
+                ]
+                if all(s == "healthy" for s in statuses):
                     providers_status = "healthy"
-                elif any(s == "healthy" for s in provider_details.values()):
+                elif any(s == "healthy" for s in statuses):
                     providers_status = "degraded"
                 else:
                     providers_status = "unhealthy"

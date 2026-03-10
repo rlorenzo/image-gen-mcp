@@ -15,9 +15,8 @@ dependencies = [
     "pydantic",
     "httpx[socks]",
     "aiofiles",
-    "aiohttp",
+    "google-genai>=1.0.0",
     "google-auth",
-    "google-auth-oauthlib",
 ]
 
 [project.optional-dependencies]
