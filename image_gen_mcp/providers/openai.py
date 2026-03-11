@@ -324,7 +324,10 @@ class OpenAIProvider(LLMProvider):
             if not image_models:
                 return {
                     "status": "unhealthy",
-                    "error": "No supported image models available for current credentials",
+                    "error": (
+                        "No supported image models available "
+                        "for current credentials"
+                    ),
                     "models_available": [],
                 }
             return {
