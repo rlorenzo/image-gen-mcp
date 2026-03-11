@@ -698,3 +698,97 @@ class TestImageFormatDetection:
         # Non-WebP data
         png_data = PNG_SIGNATURE + b"fake_png_data"
         assert _is_webp_format(png_data) is False
+
+
+class TestDetectImageMime:
+    """Test the detect_image_mime utility function."""
+
+    def test_png_bytes(self):
+        from image_gen_mcp.utils import detect_image_mime
+
+        name, mime = detect_image_mime(None, b"\x89PNG" + b"\x00" * 8)
+        assert name == "image.png"
+        assert mime == "image/png"
+
+    def test_jpeg_bytes(self):
+        from image_gen_mcp.utils import detect_image_mime
+
+        name, mime = detect_image_mime(None, b"\xff\xd8" + b"\x00" * 8)
+        assert name == "image.jpeg"
+        assert mime == "image/jpeg"
+
+    def test_webp_bytes(self):
+        from image_gen_mcp.utils import detect_image_mime
+
+        data = b"RIFF" + b"\x00" * 4 + b"WEBP" + b"\x00" * 4
+        name, mime = detect_image_mime(None, data)
+        assert name == "image.webp"
+        assert mime == "image/webp"
+
+    def test_unknown_defaults_to_png(self):
+        from image_gen_mcp.utils import detect_image_mime
+
+        name, mime = detect_image_mime(None, b"unknown")
+        assert name == "image.png"
+        assert mime == "image/png"
+
+    def test_data_url_extracts_mime(self):
+        from image_gen_mcp.utils import detect_image_mime
+
+        name, mime = detect_image_mime("data:image/webp;base64,abc", b"")
+        assert name == "image.webp"
+        assert mime == "image/webp"
+
+    def test_data_url_jpeg(self):
+        from image_gen_mcp.utils import detect_image_mime
+
+        name, mime = detect_image_mime("data:image/jpeg;base64,abc", b"")
+        assert name == "image.jpeg"
+        assert mime == "image/jpeg"
+
+    def test_data_url_takes_precedence_over_bytes(self):
+        from image_gen_mcp.utils import detect_image_mime
+
+        # Data URL says JPEG, bytes say PNG — data URL wins.
+        name, mime = detect_image_mime(
+            "data:image/jpeg;base64,abc", b"\x89PNG" + b"\x00" * 8
+        )
+        assert mime == "image/jpeg"
+
+
+class TestPrepareImageUpload:
+    """Test the prepare_image_upload utility function."""
+
+    def test_raw_bytes(self):
+        from image_gen_mcp.utils import prepare_image_upload
+
+        raw = b"\x89PNG" + b"\x00" * 8
+        data_url, image_bytes, upload = prepare_image_upload(raw)
+        assert data_url is None
+        assert image_bytes == raw
+        assert upload == ("image.png", raw, "image/png")
+
+    def test_base64_string(self):
+        import base64
+
+        from image_gen_mcp.utils import prepare_image_upload
+
+        raw = b"\xff\xd8" + b"\x00" * 8
+        b64 = base64.b64encode(raw).decode()
+        data_url, image_bytes, upload = prepare_image_upload(b64)
+        assert data_url is None
+        assert image_bytes == raw
+        assert upload[2] == "image/jpeg"
+
+    def test_data_url_string(self):
+        import base64
+
+        from image_gen_mcp.utils import prepare_image_upload
+
+        raw = b"\x00" * 8
+        b64 = base64.b64encode(raw).decode()
+        url = f"data:image/webp;base64,{b64}"
+        data_url, image_bytes, upload = prepare_image_upload(url)
+        assert data_url == url
+        assert image_bytes == raw
+        assert upload[2] == "image/webp"

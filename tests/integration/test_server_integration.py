@@ -137,6 +137,7 @@ class TestModelRegistry:
         assert isinstance(models, list)
         assert len(models) > 0
         assert "gpt-image-1" in models
+        assert "gpt-image-1.5" in models
 
     @pytest.mark.asyncio
     async def test_get_model_info(self):

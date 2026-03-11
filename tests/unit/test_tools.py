@@ -61,9 +61,11 @@ class TestImageGenerationTool:
 
         # Mock provider registry to skip complex provider logic
         mock_generation_tool.provider_registry.get_supported_models = MagicMock(
-            return_value=["gpt-image-1"]
+            return_value=["gpt-image-1.5"]
         )
-        mock_generation_tool._get_default_model = MagicMock(return_value="gpt-image-1")
+        mock_generation_tool._get_default_model = MagicMock(
+            return_value="gpt-image-1.5"
+        )
 
         # Use MagicMock for the provider object to mock non-async methods and
         # attributes. Use AsyncMock for async methods like generate_image (see below).
@@ -115,9 +117,11 @@ class TestImageGenerationTool:
             return_value="http://localhost:3001/images/test_id.png"
         )
         mock_generation_tool.provider_registry.get_supported_models = MagicMock(
-            return_value=["gpt-image-1"]
+            return_value=["gpt-image-1.5"]
         )
-        mock_generation_tool._get_default_model = MagicMock(return_value="gpt-image-1")
+        mock_generation_tool._get_default_model = MagicMock(
+            return_value="gpt-image-1.5"
+        )
 
         # Mock provider
         mock_provider = MagicMock()
@@ -180,9 +184,11 @@ class TestImageGenerationTool:
             return_value="http://localhost:3001/images/test_id.png"
         )
         mock_generation_tool.provider_registry.get_supported_models = MagicMock(
-            return_value=["gpt-image-1"]
+            return_value=["gpt-image-1.5"]
         )
-        mock_generation_tool._get_default_model = MagicMock(return_value="gpt-image-1")
+        mock_generation_tool._get_default_model = MagicMock(
+            return_value="gpt-image-1.5"
+        )
 
         # Mock provider
         mock_provider = MagicMock()
@@ -229,9 +235,11 @@ class TestImageGenerationTool:
             return_value="http://localhost:3001/images/test_id.jpeg"
         )
         mock_generation_tool.provider_registry.get_supported_models = MagicMock(
-            return_value=["gpt-image-1"]
+            return_value=["gpt-image-1.5"]
         )
-        mock_generation_tool._get_default_model = MagicMock(return_value="gpt-image-1")
+        mock_generation_tool._get_default_model = MagicMock(
+            return_value="gpt-image-1.5"
+        )
 
         # Mock provider
         mock_provider = MagicMock()
@@ -273,9 +281,11 @@ class TestImageGenerationTool:
             return_value=None
         )
         mock_generation_tool.provider_registry.get_supported_models = MagicMock(
-            return_value=["gpt-image-1"]
+            return_value=["gpt-image-1.5"]
         )
-        mock_generation_tool._get_default_model = MagicMock(return_value="gpt-image-1")
+        mock_generation_tool._get_default_model = MagicMock(
+            return_value="gpt-image-1.5"
+        )
 
         # Mock provider with error
         mock_provider = MagicMock()
@@ -329,9 +339,11 @@ class TestImageGenerationTool:
             return_value="http://localhost:3001/images/stored_id.png"
         )
         mock_generation_tool.provider_registry.get_supported_models = MagicMock(
-            return_value=["gpt-image-1"]
+            return_value=["gpt-image-1.5"]
         )
-        mock_generation_tool._get_default_model = MagicMock(return_value="gpt-image-1")
+        mock_generation_tool._get_default_model = MagicMock(
+            return_value="gpt-image-1.5"
+        )
 
         # Mock provider
         mock_provider = MagicMock()

@@ -188,6 +188,14 @@ class LLMProvider(ABC):
         """Check if the provider is available and properly configured."""
         return self.config.enabled and bool(self.config.api_key)
 
+    async def check_health(self) -> dict[str, Any]:
+        """Ping the provider API to verify connectivity and auth.
+
+        Returns a dict with at least {"status": "healthy"|"unhealthy", ...}.
+        Subclasses should override with a free API call (e.g. list models).
+        """
+        return {"status": "healthy" if self.is_available() else "unhealthy"}
+
     def estimate_cost(
         self, model: str, prompt: str, image_count: int = 1
     ) -> dict[str, Any]:

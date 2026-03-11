@@ -239,7 +239,7 @@ class TestImageSettings:
         """Test image settings with default values."""
         settings = ImageSettings()
 
-        assert settings.default_model == "gpt-image-1"
+        assert settings.default_model == "gpt-image-1.5"
         assert settings.default_quality == "auto"
         assert settings.default_size == "1536x1024"
         assert settings.default_style == "vivid"

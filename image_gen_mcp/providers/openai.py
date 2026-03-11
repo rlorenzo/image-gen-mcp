@@ -19,24 +19,57 @@ logger = logging.getLogger(__name__)
 
 
 class OpenAIProvider(LLMProvider):
-    """OpenAI provider for image generation using gpt-image-1 and DALL-E models."""
+    """OpenAI provider for image generation using gpt-image and DALL-E models."""
+
+    # Shared capabilities for gpt-image-1 family models
+    _GPT_IMAGE_CAPABILITY = dict(
+        supported_sizes=["auto", "1024x1024", "1536x1024", "1024x1536"],
+        supported_qualities=["auto", "high", "medium", "low"],
+        supported_formats=["png", "jpeg", "webp"],
+        max_images_per_request=1,
+        supports_style=False,
+        supports_background=True,
+        supports_compression=True,
+        custom_parameters={
+            "moderation": ["auto", "low"],
+            "background": ["auto", "transparent", "opaque"],
+        },
+    )
 
     # Supported models and their capabilities
     SUPPORTED_MODELS = {
         "gpt-image-1": ModelCapability(
             model_id="gpt-image-1",
-            supported_sizes=["auto", "1024x1024", "1536x1024", "1024x1536"],
-            supported_qualities=["auto", "high", "medium", "low"],
-            supported_formats=["png", "jpeg", "webp"],
+            **_GPT_IMAGE_CAPABILITY,
+        ),
+        "gpt-image-1.5": ModelCapability(
+            model_id="gpt-image-1.5",
+            **_GPT_IMAGE_CAPABILITY,
+        ),
+        "dall-e-3": ModelCapability(
+            model_id="dall-e-3",
+            supported_sizes=["1024x1024", "1792x1024", "1024x1792"],
+            supported_qualities=["auto", "high"],
+            supported_formats=["png"],
             max_images_per_request=1,
-            supports_style=False,
-            supports_background=True,
-            supports_compression=True,
+            supports_style=True,
+            supports_background=False,
+            supports_compression=False,
             custom_parameters={
-                "moderation": ["auto", "low"],
-                "background": ["auto", "transparent", "opaque"],
+                "style": ["vivid", "natural"],
             },
-        )
+        ),
+        "dall-e-2": ModelCapability(
+            model_id="dall-e-2",
+            supported_sizes=["256x256", "512x512", "1024x1024"],
+            supported_qualities=["auto"],
+            supported_formats=["png"],
+            max_images_per_request=10,
+            supports_style=False,
+            supports_background=False,
+            supports_compression=False,
+            custom_parameters={},
+        ),
     }
 
     def __init__(self, config: ProviderConfig):
@@ -92,8 +125,11 @@ class OpenAIProvider(LLMProvider):
 
         # Map quality parameter based on model
         if model == "dall-e-3":
-            request_params["quality"] = "hd" if quality == "high" else "standard"
-        elif model == "gpt-image-1":
+            request_params["quality"] = (
+                "hd" if quality == "high" else "standard"
+            )
+        elif not model.startswith("dall-e"):
+            # gpt-image models use the quality value directly
             request_params["quality"] = quality
             request_params["moderation"] = moderation
 
@@ -110,16 +146,10 @@ class OpenAIProvider(LLMProvider):
         if capabilities.supports_style:
             request_params["style"] = style
 
-        # Add gpt-image-1 specific parameters
-        if model == "gpt-image-1":
-            request_params.update(
-                {
-                    "output_format": output_format,
-                    "background": background,
-                }
-            )
-
-            # Add compression for JPEG/WebP
+        # Add gpt-image specific parameters (not supported by DALL-E)
+        if model.startswith("gpt-image-"):
+            request_params["output_format"] = output_format
+            request_params["background"] = background
             if output_format in ["jpeg", "webp"] and compression < 100:
                 request_params["output_compression"] = compression
 
@@ -129,7 +159,7 @@ class OpenAIProvider(LLMProvider):
 
             response = await self.client.images.generate(**request_params)
 
-            # Process response - OpenAI returns base64 for gpt-image-1, URLs for DALL-E
+            # Process response
             if hasattr(response.data[0], "b64_json") and response.data[0].b64_json:
                 # Base64 response (gpt-image-1)
                 image_bytes = base64.b64decode(response.data[0].b64_json)
@@ -205,33 +235,25 @@ class OpenAIProvider(LLMProvider):
 
         capabilities = self.SUPPORTED_MODELS[model]
 
-        # Convert base64 strings to bytes if needed
-        if isinstance(image_data, str):
-            if image_data.startswith("data:"):
-                image_data = image_data.split(",", 1)[1]
-            image_bytes = base64.b64decode(image_data)
-        else:
-            image_bytes = image_data
+        from ..utils import prepare_image_upload
 
-        mask_bytes = None
+        # Decode inputs and build SDK upload tuples.
+        _, _, image_file = prepare_image_upload(image_data)
+
+        mask_file = None
         if mask_data:
-            if isinstance(mask_data, str):
-                if mask_data.startswith("data:"):
-                    mask_data = mask_data.split(",", 1)[1]
-                mask_bytes = base64.b64decode(mask_data)
-            else:
-                mask_bytes = mask_data
+            _, _, mask_file = prepare_image_upload(mask_data)
 
         # Build request parameters
         request_params = {
             "model": model,
-            "image": image_bytes,
+            "image": image_file,
             "prompt": prompt,
             "n": min(n, capabilities.max_images_per_request),
         }
 
-        if mask_bytes:
-            request_params["mask"] = mask_bytes
+        if mask_file:
+            request_params["mask"] = mask_file
 
         # Add size parameter
         if size in capabilities.supported_sizes:
@@ -239,17 +261,11 @@ class OpenAIProvider(LLMProvider):
         else:
             request_params["size"] = capabilities.supported_sizes[0]
 
-        # Add gpt-image-1 specific parameters
-        if model == "gpt-image-1":
-            request_params.update(
-                {
-                    "quality": quality,
-                    "output_format": output_format,
-                    "background": background,
-                }
-            )
-
-            # Add compression for JPEG/WebP
+        # Add gpt-image-1 family specific parameters
+        if model.startswith("gpt-image-"):
+            request_params["quality"] = quality
+            request_params["output_format"] = output_format
+            request_params["background"] = background
             if output_format in ["jpeg", "webp"] and compression < 100:
                 request_params["output_compression"] = compression
 
@@ -297,6 +313,31 @@ class OpenAIProvider(LLMProvider):
                 error_code="EDITING_FAILED",
             )
 
+    async def check_health(self) -> dict[str, Any]:
+        """Ping OpenAI API using the free GET /v1/models endpoint."""
+        try:
+            models = await self.client.models.list()
+            supported = set(self.SUPPORTED_MODELS.keys())
+            image_models = [
+                m.id for m in models.data if m.id in supported
+            ]
+            if not image_models:
+                return {
+                    "status": "unhealthy",
+                    "error": (
+                        "No supported image models available "
+                        "for current credentials"
+                    ),
+                    "models_available": [],
+                }
+            return {
+                "status": "healthy",
+                "models_available": image_models,
+            }
+        except Exception as e:
+            self._logger.warning(f"OpenAI health check failed: {e}")
+            return {"status": "unhealthy", "error": str(e)}
+
     async def _download_image(self, image_url: str) -> bytes:
         """Download image from URL (for DALL-E models that return URLs)."""
         try:
@@ -316,28 +357,27 @@ class OpenAIProvider(LLMProvider):
     ) -> dict[str, Any]:
         """Estimate cost for OpenAI image generation."""
 
-        # OpenAI pricing (as of 2024)
-        pricing = {
+        # OpenAI pricing
+        token_pricing = {
             "gpt-image-1": {
                 "text_input_per_1m_tokens": 5.0,
                 "image_output_per_1m_tokens": 40.0,
                 "tokens_per_image": 1750,
             },
-            "dall-e-3": {
-                "cost_per_image": 0.04,  # $0.04 per image
-            },
-            "dall-e-2": {
-                "cost_per_image": 0.02,  # $0.02 per image
+            "gpt-image-1.5": {
+                "text_input_per_1m_tokens": 4.0,
+                "image_output_per_1m_tokens": 32.0,
+                "tokens_per_image": 1750,
             },
         }
 
-        if model not in pricing:
-            return super().estimate_cost(model, prompt, image_count)
+        fixed_pricing = {
+            "dall-e-3": {"cost_per_image": 0.04},
+            "dall-e-2": {"cost_per_image": 0.02},
+        }
 
-        model_pricing = pricing[model]
-
-        if model == "gpt-image-1":
-            # Token-based pricing
+        if model in token_pricing:
+            model_pricing = token_pricing[model]
             text_tokens = len(prompt.split()) * 1.3  # Rough approximation
             text_cost = (text_tokens / 1_000_000) * model_pricing[
                 "text_input_per_1m_tokens"
@@ -360,9 +400,9 @@ class OpenAIProvider(LLMProvider):
                     "total_images": image_count,
                 },
             }
-        else:
-            # Fixed price per image
-            total_cost = model_pricing["cost_per_image"] * image_count
+        elif model in fixed_pricing:
+            per_image = fixed_pricing[model]["cost_per_image"]
+            total_cost = per_image * image_count
 
             return {
                 "provider": self.name,
@@ -370,8 +410,10 @@ class OpenAIProvider(LLMProvider):
                 "estimated_cost_usd": round(total_cost, 4),
                 "currency": "USD",
                 "breakdown": {
-                    "per_image": model_pricing["cost_per_image"],
+                    "per_image": per_image,
                     "total_images": image_count,
                     "base_cost": total_cost,
                 },
             }
+        else:
+            return super().estimate_cost(model, prompt, image_count)

@@ -1,6 +1,5 @@
 """OpenAI API client manager with retry logic and error handling."""
 
-import base64
 import logging
 from typing import Any
 
@@ -39,7 +38,7 @@ class OpenAIClientManager:
     async def generate_image(
         self,
         prompt: str,
-        model: str = "gpt-image-1",
+        model: str = "gpt-image-1.5",
         quality: str = "auto",
         size: str = "1536x1024",
         style: str = "vivid",
@@ -60,8 +59,8 @@ class OpenAIClientManager:
             "moderation": moderation,
         }
 
-        # Add gpt-image-1 specific parameters
-        if model == "gpt-image-1":
+        # Add gpt-image-1 family specific parameters
+        if model.startswith("gpt-image-"):
             request_params.update(
                 {
                     "style": style,
@@ -77,7 +76,7 @@ class OpenAIClientManager:
         try:
             logger.info(f"Generating image with prompt: {prompt[:100]}...")
             logger.debug(f"Request parameters: {list(request_params.keys())}")
-            response = await self._client.images.generate(**request_params)
+            response = await self.client.images.generate(**request_params)
 
             logger.info(f"Successfully generated {len(response.data)} image(s)")
             return response
@@ -91,7 +90,7 @@ class OpenAIClientManager:
         image_data: str | bytes,
         prompt: str,
         mask_data: str | bytes | None = None,
-        model: str = "gpt-image-1",
+        model: str = "gpt-image-1.5",
         quality: str = "auto",
         size: str = "1536x1024",
         output_format: str = "png",
@@ -101,46 +100,32 @@ class OpenAIClientManager:
     ) -> ImagesResponse:
         """Edit an image using OpenAI's Images API."""
 
-        # Convert base64 strings to bytes if needed
-        if isinstance(image_data, str):
-            if image_data.startswith("data:"):
-                # Handle data URLs
-                image_data = image_data.split(",", 1)[1]
-            image_bytes = base64.b64decode(image_data)
-        else:
-            image_bytes = image_data
+        from . import prepare_image_upload
 
-        mask_bytes = None
+        # Decode inputs and build SDK upload tuples.
+        _, _, image_file = prepare_image_upload(image_data)
+
+        mask_file = None
         if mask_data:
-            if isinstance(mask_data, str):
-                if mask_data.startswith("data:"):
-                    mask_data = mask_data.split(",", 1)[1]
-                mask_bytes = base64.b64decode(mask_data)
-            else:
-                mask_bytes = mask_data
+            _, _, mask_file = prepare_image_upload(mask_data)
 
+        # The /v1/images/edits endpoint supports gpt-image-1.5, gpt-image-1, dall-e-2.
         request_params = {
             "model": model,
-            "image": image_bytes,
+            "image": image_file,
             "prompt": prompt,
             "n": n,
-            "quality": quality,
             "size": size,
         }
 
-        if mask_bytes:
-            request_params["mask"] = mask_bytes
+        if mask_file:
+            request_params["mask"] = mask_file
 
-        # Add gpt-image-1 specific parameters
-        if model == "gpt-image-1":
-            request_params.update(
-                {
-                    "output_format": output_format,
-                    "background": background,
-                }
-            )
-
-            # Add compression for JPEG/WebP
+        # Add gpt-image-1 family specific parameters
+        if model.startswith("gpt-image-"):
+            request_params["quality"] = quality
+            request_params["output_format"] = output_format
+            request_params["background"] = background
             if output_format in ["jpeg", "webp"] and compression < 100:
                 request_params["output_compression"] = compression
 
@@ -148,7 +133,7 @@ class OpenAIClientManager:
             logger.info(f"Editing image with prompt: {prompt[:100]}...")
             logger.debug(f"Request parameters: {list(request_params.keys())}")
             logger.debug("API client configured for image editing")
-            response = await self._client.images.edit(**request_params)
+            response = await self.client.images.edit(**request_params)
 
             logger.info(
                 f"Successfully edited image, generated {len(response.data)} result(s)"
@@ -165,11 +150,11 @@ class OpenAIClientManager:
         # Rough token estimation (actual tokenization may vary)
         text_tokens = len(prompt.split()) * 1.3  # Rough approximation
 
-        # gpt-image-1 pricing (as of documentation)
-        text_input_cost = (text_tokens / 1_000_000) * 5.0  # $5 per 1M tokens
+        # gpt-image-1.5 pricing (20% cheaper than gpt-image-1)
+        text_input_cost = (text_tokens / 1_000_000) * 4.0  # $4 per 1M tokens
         image_output_cost = (
             image_count * 1750 / 1_000_000
-        ) * 40.0  # ~1750 tokens per image, $40 per 1M
+        ) * 32.0  # ~1750 tokens per image, $32 per 1M
 
         total_cost = text_input_cost + image_output_cost
 
