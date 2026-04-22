@@ -239,7 +239,7 @@ class TestImageSettings:
         """Test image settings with default values."""
         settings = ImageSettings()
 
-        assert settings.default_model == "gpt-image-1.5"
+        assert settings.default_model == "gpt-image-2"
         assert settings.default_quality == "auto"
         assert settings.default_size == "1536x1024"
         assert settings.default_style == "vivid"
@@ -274,8 +274,9 @@ class TestImageSettings:
             settings = ImageSettings(default_quality=quality)
             assert settings.default_quality == quality
 
-        # Valid size values
-        for size in ["1024x1024", "1536x1024", "1024x1536"]:
+        # Valid size values (presets and arbitrary WxH both accepted; the
+        # provider validates at request time for model-specific constraints).
+        for size in ["1024x1024", "1536x1024", "1024x1536", "3840x2160", "2048x1152"]:
             settings = ImageSettings(default_size=size)
             assert settings.default_size == size
 
@@ -287,9 +288,6 @@ class TestImageSettings:
         # Invalid values should raise validation errors
         with pytest.raises(ValidationError):
             ImageSettings(default_quality="invalid")
-
-        with pytest.raises(ValidationError):
-            ImageSettings(default_size="invalid")
 
         with pytest.raises(ValidationError):
             ImageSettings(default_style="invalid")

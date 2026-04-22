@@ -18,6 +18,27 @@ from .base import (
 logger = logging.getLogger(__name__)
 
 
+# Token pricing for gpt-image-* models. Shared with OpenAIClientManager so
+# pricing lives in one place.
+GPT_IMAGE_TOKEN_PRICING: dict[str, dict[str, float]] = {
+    "gpt-image-1": {
+        "text_input_per_1m_tokens": 5.0,
+        "image_output_per_1m_tokens": 40.0,
+        "tokens_per_image": 1750,
+    },
+    "gpt-image-1.5": {
+        "text_input_per_1m_tokens": 4.0,
+        "image_output_per_1m_tokens": 32.0,
+        "tokens_per_image": 1750,
+    },
+    "gpt-image-2": {
+        "text_input_per_1m_tokens": 5.0,
+        "image_output_per_1m_tokens": 30.0,
+        "tokens_per_image": 1750,
+    },
+}
+
+
 class OpenAIProvider(LLMProvider):
     """OpenAI provider for image generation using gpt-image and DALL-E models."""
 
@@ -36,6 +57,35 @@ class OpenAIProvider(LLMProvider):
         },
     )
 
+    # gpt-image-2 adds flexible sizing up to 4K
+    _GPT_IMAGE_2_CAPABILITY = dict(
+        supported_sizes=[
+            "auto",
+            "1024x1024",
+            "1536x1024",
+            "1024x1536",
+            "3840x2160",
+        ],
+        supported_qualities=["auto", "high", "medium", "low"],
+        supported_formats=["png", "jpeg", "webp"],
+        max_images_per_request=1,
+        supports_style=False,
+        supports_background=True,
+        supports_compression=True,
+        supports_custom_sizes=True,
+        size_constraints={
+            "multiple_of": 16,
+            "max_edge": 3840,
+            "max_aspect_ratio": 3.0,
+            "min_pixels": 655_360,
+            "max_pixels": 8_294_400,
+        },
+        custom_parameters={
+            "moderation": ["auto", "low"],
+            "background": ["auto", "transparent", "opaque"],
+        },
+    )
+
     # Supported models and their capabilities
     SUPPORTED_MODELS = {
         "gpt-image-1": ModelCapability(
@@ -45,6 +95,10 @@ class OpenAIProvider(LLMProvider):
         "gpt-image-1.5": ModelCapability(
             model_id="gpt-image-1.5",
             **_GPT_IMAGE_CAPABILITY,
+        ),
+        "gpt-image-2": ModelCapability(
+            model_id="gpt-image-2",
+            **_GPT_IMAGE_2_CAPABILITY,
         ),
         "dall-e-3": ModelCapability(
             model_id="dall-e-3",
@@ -86,9 +140,88 @@ class OpenAIProvider(LLMProvider):
         """Return set of supported OpenAI model IDs."""
         return set(self.SUPPORTED_MODELS.keys())
 
+    @staticmethod
+    def _validate_custom_size(size: str, constraints: dict[str, Any]) -> bool:
+        """Check a WxH string against a model's custom-size constraints."""
+        try:
+            w_str, h_str = size.lower().split("x")
+            w, h = int(w_str), int(h_str)
+        except (ValueError, AttributeError):
+            return False
+        if w <= 0 or h <= 0:
+            return False
+        multiple_of = constraints["multiple_of"]
+        if w % multiple_of or h % multiple_of:
+            return False
+        if max(w, h) > constraints["max_edge"]:
+            return False
+        if max(w, h) / min(w, h) > constraints["max_aspect_ratio"]:
+            return False
+        pixels = w * h
+        return constraints["min_pixels"] <= pixels <= constraints["max_pixels"]
+
+    @classmethod
+    def _resolve_size(
+        cls, size: str, capabilities: ModelCapability, model: str
+    ) -> str:
+        """Return a size string the API will accept, falling back to auto.
+
+        Normalizes whitespace and case up-front so cache keys, metadata, and
+        outbound requests all see the same canonical value regardless of
+        caller input (e.g. ``"  1600X896 "`` → ``"1600x896"``).
+        """
+        normalized = size.strip().lower() if isinstance(size, str) else size
+        if normalized in capabilities.supported_sizes:
+            return normalized
+        if (
+            capabilities.supports_custom_sizes
+            and capabilities.size_constraints
+            and cls._validate_custom_size(normalized, capabilities.size_constraints)
+        ):
+            return normalized
+        fallback = (
+            "auto" if "auto" in capabilities.supported_sizes
+            else capabilities.supported_sizes[0]
+        )
+        logger.warning(
+            "Size %r not supported by %s, using %s", size, model, fallback
+        )
+        return fallback
+
     def get_model_capabilities(self, model_id: str) -> ModelCapability | None:
         """Get capabilities for a specific OpenAI model."""
         return self.SUPPORTED_MODELS.get(model_id)
+
+    def validate_model_params(
+        self, model: str, params: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Normalize params, resolving size so metadata and cache reflect
+        what will actually be sent to the API (custom sizes that fail the
+        model's constraints are downgraded to a supported fallback here,
+        not silently rewritten later)."""
+        # Normalize size BEFORE delegating to super() — for models without
+        # supports_custom_sizes, the base validator does an exact-match check
+        # against supported_sizes and would downgrade whitespace/case variants
+        # (e.g. "  1024X1024  ") to the default.
+        capabilities = self.get_model_capabilities(model)
+        normalized_size: str | None = None
+        params = dict(params)
+        if capabilities and "size" in params:
+            raw = params["size"]
+            # Unwrap enums (ImageSize etc.) — str(enum) gives "Class.MEMBER"
+            # for non-StrEnum classes, not the underlying value.
+            normalized_size = raw.value if hasattr(raw, "value") else raw
+            if isinstance(normalized_size, str):
+                normalized_size = normalized_size.strip().lower()
+            params["size"] = normalized_size
+
+        params = super().validate_model_params(model, params)
+
+        if capabilities and normalized_size is not None:
+            params["size"] = self._resolve_size(
+                normalized_size, capabilities, model
+            )
+        return params
 
     async def generate_image(
         self,
@@ -134,13 +267,7 @@ class OpenAIProvider(LLMProvider):
             request_params["moderation"] = moderation
 
         # Add size parameter
-        if size in capabilities.supported_sizes:
-            request_params["size"] = size
-        else:
-            request_params["size"] = capabilities.supported_sizes[0]
-            self._logger.warning(
-                f"Size '{size}' not supported, using {request_params['size']}"
-            )
+        request_params["size"] = self._resolve_size(size, capabilities, model)
 
         # Add style parameter if supported
         if capabilities.supports_style:
@@ -256,10 +383,7 @@ class OpenAIProvider(LLMProvider):
             request_params["mask"] = mask_file
 
         # Add size parameter
-        if size in capabilities.supported_sizes:
-            request_params["size"] = size
-        else:
-            request_params["size"] = capabilities.supported_sizes[0]
+        request_params["size"] = self._resolve_size(size, capabilities, model)
 
         # Add gpt-image-1 family specific parameters
         if model.startswith("gpt-image-"):
@@ -357,27 +481,13 @@ class OpenAIProvider(LLMProvider):
     ) -> dict[str, Any]:
         """Estimate cost for OpenAI image generation."""
 
-        # OpenAI pricing
-        token_pricing = {
-            "gpt-image-1": {
-                "text_input_per_1m_tokens": 5.0,
-                "image_output_per_1m_tokens": 40.0,
-                "tokens_per_image": 1750,
-            },
-            "gpt-image-1.5": {
-                "text_input_per_1m_tokens": 4.0,
-                "image_output_per_1m_tokens": 32.0,
-                "tokens_per_image": 1750,
-            },
-        }
-
         fixed_pricing = {
             "dall-e-3": {"cost_per_image": 0.04},
             "dall-e-2": {"cost_per_image": 0.02},
         }
 
-        if model in token_pricing:
-            model_pricing = token_pricing[model]
+        if model in GPT_IMAGE_TOKEN_PRICING:
+            model_pricing = GPT_IMAGE_TOKEN_PRICING[model]
             text_tokens = len(prompt.split()) * 1.3  # Rough approximation
             text_cost = (text_tokens / 1_000_000) * model_pricing[
                 "text_input_per_1m_tokens"

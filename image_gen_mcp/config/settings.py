@@ -133,12 +133,17 @@ class ProvidersSettings(BaseModel):
 class ImageSettings(BaseModel):
     """Image generation default settings."""
 
-    default_model: str = Field("gpt-image-1.5", description="Default image model")
+    default_model: str = Field("gpt-image-2", description="Default image model")
     default_quality: Literal["auto", "high", "medium", "low"] = Field(
         "auto", description="Default quality"
     )
-    default_size: Literal["1024x1024", "1536x1024", "1024x1536", "auto"] = Field(
-        "1536x1024", description="Default size"
+    default_size: str = Field(
+        "1536x1024",
+        description=(
+            "Default image size. Accepts 'auto', presets like '1024x1024' / "
+            "'1536x1024' / '1024x1536' / '3840x2160', or any 'WxH' supported "
+            "by the configured model (validated at request time)."
+        ),
     )
     default_style: Literal["vivid", "natural"] = Field(
         "vivid", description="Default style"
