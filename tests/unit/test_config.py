@@ -274,11 +274,23 @@ class TestImageSettings:
             settings = ImageSettings(default_quality=quality)
             assert settings.default_quality == quality
 
-        # Valid size values (presets and arbitrary WxH both accepted; the
-        # provider validates at request time for model-specific constraints).
-        for size in ["1024x1024", "1536x1024", "1024x1536", "3840x2160", "2048x1152"]:
+        # Valid size values: 'auto', presets, and arbitrary well-formed WxH.
+        # Model-specific constraints are enforced by the provider at request
+        # time; the settings validator only rejects malformed strings.
+        for size in [
+            "auto",
+            "1024x1024",
+            "1536x1024",
+            "1024x1536",
+            "3840x2160",
+            "2048x1152",
+        ]:
             settings = ImageSettings(default_size=size)
             assert settings.default_size == size
+
+        # Whitespace and case are normalized.
+        assert ImageSettings(default_size="AUTO").default_size == "auto"
+        assert ImageSettings(default_size="  1600X896  ").default_size == "1600x896"
 
         # Valid style values
         for style in ["vivid", "natural"]:
@@ -291,6 +303,12 @@ class TestImageSettings:
 
         with pytest.raises(ValidationError):
             ImageSettings(default_style="invalid")
+
+        # Malformed default_size should fail fast at startup — gibberish must
+        # not silently survive config validation.
+        for bad in ["foo", "1024", "1024x", "xx1024", "0x1024", "", "1024x-10"]:
+            with pytest.raises(ValidationError):
+                ImageSettings(default_size=bad)
 
         # Test compression validation
         with pytest.raises(ValidationError):

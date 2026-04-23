@@ -69,20 +69,125 @@ class TestValidateCustomSize:
 
 
 class TestEstimateCostGptImage2:
-    def test_cost_uses_30_per_1m(self, provider):
-        result = provider.estimate_cost("gpt-image-2", "a red circle", image_count=1)
-        # 1750 tokens/image * $30/1M = $0.0525 per image, plus tiny text cost
-        image_cost = result["breakdown"]["image_output_cost"]
-        assert image_cost == pytest.approx(0.0525, abs=1e-4)
-        assert result["estimated_cost_usd"] > 0
-        assert result["provider"] == "openai"
-        assert result["model"] == "gpt-image-2"
+    """Cost must scale by quality tier and pixel count, not be a fixed number."""
+
+    def test_low_quality_1024_near_005(self, provider):
+        result = provider.estimate_cost(
+            "gpt-image-2", "a red circle",
+            image_count=1, quality="low", size="1024x1024",
+        )
+        # Low-quality 1024x1024 is roughly $0.005 per OpenAI's calculator.
+        assert result["breakdown"]["image_output_cost"] == pytest.approx(
+            0.0051, abs=1e-3
+        )
+        assert result["estimate_accuracy"] == "rough"
+
+    def test_medium_quality_1024_near_041(self, provider):
+        result = provider.estimate_cost(
+            "gpt-image-2", "a red circle",
+            image_count=1, quality="medium", size="1024x1024",
+        )
+        # Medium 1024x1024 ≈ $0.041 per calculator.
+        assert result["breakdown"]["image_output_cost"] == pytest.approx(
+            0.0411, abs=5e-3
+        )
+
+    def test_high_quality_1024_near_165(self, provider):
+        result = provider.estimate_cost(
+            "gpt-image-2", "a red circle",
+            image_count=1, quality="high", size="1024x1024",
+        )
+        # High 1024x1024 ≈ $0.165 per calculator.
+        assert result["breakdown"]["image_output_cost"] == pytest.approx(
+            0.165, abs=0.01
+        )
+
+    def test_size_multiplier_capped_for_large_images(self, provider):
+        """OpenAI's calculator scales sub-linearly: a 4K image costs only
+        ~28% more than 1024x1024 despite the ~8x pixel ratio. Our
+        approximation caps the multiplier at 1.3x to match."""
+        small = provider.estimate_cost(
+            "gpt-image-2", "x", quality="high", size="1024x1024",
+        )["breakdown"]["tokens_per_image"]
+        huge = provider.estimate_cost(
+            "gpt-image-2", "x", quality="high", size="3840x2160",
+        )["breakdown"]["tokens_per_image"]
+        assert huge == int(small * 1.3)
+
+    def test_scales_down_for_small_sizes(self, provider):
+        """Below 1024x1024 the cost should scale down proportionally."""
+        baseline = provider.estimate_cost(
+            "gpt-image-2", "x", quality="low", size="1024x1024",
+        )["breakdown"]["tokens_per_image"]
+        quarter = provider.estimate_cost(
+            "gpt-image-2", "x", quality="low", size="512x512",
+        )["breakdown"]["tokens_per_image"]
+        assert quarter == pytest.approx(baseline / 4, rel=0.02)
+
+    def test_4k_high_quality_near_calculator(self, provider):
+        """High 3840x2160 ≈ $0.211 per OpenAI's calculator."""
+        result = provider.estimate_cost(
+            "gpt-image-2", "x", quality="high", size="3840x2160",
+        )
+        assert result["breakdown"]["image_output_cost"] == pytest.approx(
+            0.211, abs=0.02
+        )
+
+    def test_auto_quality_treated_as_medium(self, provider):
+        auto = provider.estimate_cost(
+            "gpt-image-2", "x", quality="auto", size="1024x1024",
+        )["breakdown"]["tokens_per_image"]
+        medium = provider.estimate_cost(
+            "gpt-image-2", "x", quality="medium", size="1024x1024",
+        )["breakdown"]["tokens_per_image"]
+        assert auto == medium
+
+    def test_breakdown_includes_quality_and_size(self, provider):
+        result = provider.estimate_cost(
+            "gpt-image-2", "x", quality="high", size="2048x1152",
+        )
+        assert result["breakdown"]["quality"] == "high"
+        assert result["breakdown"]["size"] == "2048x1152"
 
     def test_cost_cheaper_than_gpt_image_1_5(self, provider):
         prompt = "a blue square on a white background"
-        v2 = provider.estimate_cost("gpt-image-2", prompt, 1)["estimated_cost_usd"]
-        v1_5 = provider.estimate_cost("gpt-image-1.5", prompt, 1)["estimated_cost_usd"]
+        v2 = provider.estimate_cost(
+            "gpt-image-2", prompt, 1, quality="auto", size="1024x1024",
+        )["estimated_cost_usd"]
+        v1_5 = provider.estimate_cost(
+            "gpt-image-1.5", prompt, 1,
+        )["estimated_cost_usd"]
         assert v2 < v1_5
+
+
+class TestResolveBackground:
+    """gpt-image-2 does not support transparent backgrounds (OpenAI docs)."""
+
+    def test_transparent_downgraded_for_gpt_image_2(self, provider, caplog):
+        import logging
+        caplog.set_level(logging.WARNING)
+        assert provider._resolve_background("transparent", "gpt-image-2") == "auto"
+        assert any(
+            "transparent" in rec.message and "gpt-image-2" in rec.message
+            for rec in caplog.records
+        )
+
+    def test_transparent_preserved_for_gpt_image_1_5(self, provider):
+        # Older gpt-image-* models DO support transparent.
+        for m in ("gpt-image-1", "gpt-image-1.5"):
+            assert provider._resolve_background("transparent", m) == "transparent"
+
+    def test_auto_and_opaque_passthrough(self, provider):
+        assert provider._resolve_background("auto", "gpt-image-2") == "auto"
+        assert provider._resolve_background("opaque", "gpt-image-2") == "opaque"
+
+    def test_capability_list_excludes_transparent_for_v2(self):
+        cap = OpenAIProvider.SUPPORTED_MODELS["gpt-image-2"]
+        assert "transparent" not in cap.custom_parameters["background"]
+        assert "transparent" in (
+            OpenAIProvider.SUPPORTED_MODELS["gpt-image-1.5"]
+            .custom_parameters["background"]
+        )
 
 
 class TestResolveSize:

@@ -18,9 +18,21 @@ from .base import (
 logger = logging.getLogger(__name__)
 
 
+# Per-image output token approximations at 1024x1024, sampled from OpenAI's
+# image-generation calculator. Token cost scales roughly linearly with pixel
+# count at a given quality tier. These are ROUGH and only intended to give
+# callers an order-of-magnitude estimate — the actual calculator uses a more
+# complex model we don't replicate here.
+_GPT_IMAGE_2_TOKENS_BASE_1024: dict[str, int] = {
+    "low": 170,       # ≈ $0.005 at $30/1M
+    "medium": 1370,   # ≈ $0.041
+    "high": 5500,     # ≈ $0.165
+    "auto": 1370,     # treat auto as medium for estimation
+}
+
 # Token pricing for gpt-image-* models. Shared with OpenAIClientManager so
 # pricing lives in one place.
-GPT_IMAGE_TOKEN_PRICING: dict[str, dict[str, float]] = {
+GPT_IMAGE_TOKEN_PRICING: dict[str, dict[str, Any]] = {
     "gpt-image-1": {
         "text_input_per_1m_tokens": 5.0,
         "image_output_per_1m_tokens": 40.0,
@@ -34,9 +46,52 @@ GPT_IMAGE_TOKEN_PRICING: dict[str, dict[str, float]] = {
     "gpt-image-2": {
         "text_input_per_1m_tokens": 5.0,
         "image_output_per_1m_tokens": 30.0,
-        "tokens_per_image": 1750,
+        "tokens_per_image_by_quality": _GPT_IMAGE_2_TOKENS_BASE_1024,
     },
 }
+
+
+def _parse_pixels(size: str) -> int | None:
+    """Parse a 'WxH' size string and return W*H. None on failure or 'auto'."""
+    if not isinstance(size, str):
+        return None
+    normalized = size.strip().lower()
+    if normalized == "auto" or "x" not in normalized:
+        return None
+    try:
+        w_str, h_str = normalized.split("x", 1)
+        w, h = int(w_str), int(h_str)
+    except (ValueError, TypeError):
+        return None
+    if w <= 0 or h <= 0:
+        return None
+    return w * h
+
+
+def _gpt_image_2_tokens_per_image(quality: str, size: str) -> int:
+    """Approximate output tokens for a single gpt-image-2 image.
+
+    Uses the quality-tier baseline at 1024x1024 with a sub-linear size
+    multiplier: scales linearly *down* for smaller images but caps the
+    upscale at ~1.3x. This matches the OpenAI calculator, which prices
+    high-quality 4K at only ~28% more than high-quality 1024x1024 despite
+    the 7.9x pixel ratio.
+
+    Unknown quality falls back to the auto/medium tier; auto/unparseable
+    size uses the 1024x1024 baseline unchanged.
+    """
+    base = _GPT_IMAGE_2_TOKENS_BASE_1024.get(
+        (quality or "auto").lower(),
+        _GPT_IMAGE_2_TOKENS_BASE_1024["auto"],
+    )
+    pixels = _parse_pixels(size)
+    if pixels is None:
+        return base
+    ratio = pixels / (1024 * 1024)
+    # Scale down linearly below 1024² (small sizes cost less); cap the
+    # upscale at 1.3x to match the observed calculator flattening.
+    multiplier = ratio if ratio < 1.0 else min(ratio, 1.3)
+    return max(1, int(base * multiplier))
 
 
 class OpenAIProvider(LLMProvider):
@@ -82,7 +137,9 @@ class OpenAIProvider(LLMProvider):
         },
         custom_parameters={
             "moderation": ["auto", "low"],
-            "background": ["auto", "transparent", "opaque"],
+            # gpt-image-2 does not support transparent backgrounds.
+            # Ref: https://developers.openai.com/api/docs/guides/image-generation
+            "background": ["auto", "opaque"],
         },
     )
 
@@ -192,6 +249,25 @@ class OpenAIProvider(LLMProvider):
         """Get capabilities for a specific OpenAI model."""
         return self.SUPPORTED_MODELS.get(model_id)
 
+    @classmethod
+    def _resolve_background(cls, background: str, model: str) -> str:
+        """Downgrade unsupported background values per model.
+
+        gpt-image-2 does not support transparent backgrounds per OpenAI
+        docs; callers that request it get 'auto' instead with a warning.
+        """
+        if (
+            model == "gpt-image-2"
+            and isinstance(background, str)
+            and background.strip().lower() == "transparent"
+        ):
+            logger.warning(
+                "background='transparent' is not supported by gpt-image-2; "
+                "using 'auto' instead"
+            )
+            return "auto"
+        return background
+
     def validate_model_params(
         self, model: str, params: dict[str, Any]
     ) -> dict[str, Any]:
@@ -276,7 +352,9 @@ class OpenAIProvider(LLMProvider):
         # Add gpt-image specific parameters (not supported by DALL-E)
         if model.startswith("gpt-image-"):
             request_params["output_format"] = output_format
-            request_params["background"] = background
+            request_params["background"] = self._resolve_background(
+                background, model
+            )
             if output_format in ["jpeg", "webp"] and compression < 100:
                 request_params["output_compression"] = compression
 
@@ -389,7 +467,9 @@ class OpenAIProvider(LLMProvider):
         if model.startswith("gpt-image-"):
             request_params["quality"] = quality
             request_params["output_format"] = output_format
-            request_params["background"] = background
+            request_params["background"] = self._resolve_background(
+                background, model
+            )
             if output_format in ["jpeg", "webp"] and compression < 100:
                 request_params["output_compression"] = compression
 
@@ -477,9 +557,21 @@ class OpenAIProvider(LLMProvider):
             )
 
     def estimate_cost(
-        self, model: str, prompt: str, image_count: int = 1
+        self,
+        model: str,
+        prompt: str,
+        image_count: int = 1,
+        quality: str = "auto",
+        size: str = "1024x1024",
     ) -> dict[str, Any]:
-        """Estimate cost for OpenAI image generation."""
+        """Estimate cost for OpenAI image generation.
+
+        For gpt-image-2, output tokens vary substantially by quality and
+        size, so the estimate uses a quality-tiered baseline that scales
+        linearly with pixel count. Results are marked with
+        ``estimate_accuracy: "rough"`` — callers should not rely on these
+        as authoritative billing figures.
+        """
 
         fixed_pricing = {
             "dall-e-3": {"cost_per_image": 0.04},
@@ -492,8 +584,15 @@ class OpenAIProvider(LLMProvider):
             text_cost = (text_tokens / 1_000_000) * model_pricing[
                 "text_input_per_1m_tokens"
             ]
+
+            if model == "gpt-image-2":
+                tokens_per_image = _gpt_image_2_tokens_per_image(quality, size)
+            else:
+                tokens_per_image = model_pricing["tokens_per_image"]
+
+            image_tokens_total = tokens_per_image * image_count
             image_cost = (
-                image_count * model_pricing["tokens_per_image"] / 1_000_000
+                image_tokens_total / 1_000_000
             ) * model_pricing["image_output_per_1m_tokens"]
             total_cost = text_cost + image_cost
 
@@ -502,11 +601,15 @@ class OpenAIProvider(LLMProvider):
                 "model": model,
                 "estimated_cost_usd": round(total_cost, 4),
                 "currency": "USD",
+                "estimate_accuracy": "rough",
                 "breakdown": {
                     "text_input_cost": round(text_cost, 4),
                     "image_output_cost": round(image_cost, 4),
                     "text_tokens": int(text_tokens),
-                    "image_tokens": model_pricing["tokens_per_image"] * image_count,
+                    "image_tokens": image_tokens_total,
+                    "tokens_per_image": tokens_per_image,
+                    "quality": quality,
+                    "size": size,
                     "total_images": image_count,
                 },
             }

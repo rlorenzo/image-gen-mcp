@@ -8,7 +8,11 @@ from openai import AsyncOpenAI
 from openai.types.images_response import ImagesResponse
 
 from ..config.settings import OpenAISettings
-from ..providers.openai import GPT_IMAGE_TOKEN_PRICING, OpenAIProvider
+from ..providers.openai import (
+    GPT_IMAGE_TOKEN_PRICING,
+    OpenAIProvider,
+    _gpt_image_2_tokens_per_image,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -158,8 +162,16 @@ class OpenAIClientManager:
         prompt: str,
         image_count: int = 1,
         model: str = "gpt-image-2",
+        quality: str = "auto",
+        size: str = "1024x1024",
     ) -> dict[str, Any]:
-        """Estimate the cost of image generation."""
+        """Estimate the cost of image generation.
+
+        For gpt-image-2 the per-image token count is approximated by
+        quality tier scaled to pixel count (see OpenAIProvider). Results
+        are rough — use OpenAIProvider.estimate_cost on the active
+        provider instance for the authoritative per-model breakdown.
+        """
 
         pricing = GPT_IMAGE_TOKEN_PRICING.get(model)
         if pricing is None:
@@ -183,7 +195,10 @@ class OpenAIClientManager:
                     "image_output_cost": 0.0,
                 },
             }
-        tokens_per_image = pricing["tokens_per_image"]
+        if model == "gpt-image-2":
+            tokens_per_image = _gpt_image_2_tokens_per_image(quality, size)
+        else:
+            tokens_per_image = pricing["tokens_per_image"]
 
         # Rough token estimation (actual tokenization may vary)
         text_tokens = len(prompt.split()) * 1.3

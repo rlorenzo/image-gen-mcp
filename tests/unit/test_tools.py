@@ -652,7 +652,9 @@ class TestImageEditingTool:
             captured_cache_params.update(kwargs)
             return None
 
-        mock_editing_tool.cache_manager.get_image_edit = AsyncMock(side_effect=capture_get)
+        mock_editing_tool.cache_manager.get_image_edit = AsyncMock(
+            side_effect=capture_get
+        )
         mock_editing_tool.cache_manager.set_image_edit = AsyncMock()
         mock_editing_tool.storage_manager.save_image = AsyncMock(
             return_value=("edited_id", "/path/to/image")

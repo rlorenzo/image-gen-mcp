@@ -173,9 +173,13 @@ class ImageEditingTool:
             # Decode base64 image data
             image_bytes = base64.b64decode(edited_image_data.b64_json)
 
-            # Estimate cost
+            # Estimate cost (quality/size-aware for gpt-image-2)
             cost_info = self.openai_client.estimate_cost(
-                prompt, 1, model=self.settings.images.default_model
+                prompt,
+                1,
+                model=self.settings.images.default_model,
+                quality=quality,
+                size=size,
             )
 
             # Add actual usage if available
