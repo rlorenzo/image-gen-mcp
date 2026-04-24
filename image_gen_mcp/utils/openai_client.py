@@ -70,7 +70,12 @@ class OpenAIClientManager:
                 {
                     "style": style,
                     "output_format": output_format,
-                    "background": background,
+                    # Downgrade model-incompatible background values
+                    # (e.g. transparent on gpt-image-2) via the same
+                    # resolver used by OpenAIProvider.
+                    "background": OpenAIProvider._resolve_background(
+                        background, model
+                    ),
                 }
             )
 
@@ -116,9 +121,7 @@ class OpenAIClientManager:
 
         # Normalize size against the model's capabilities so invalid custom
         # sizes (e.g. "9999x9999") fall back locally instead of failing at
-        # the remote API. generate_image() in this class is currently
-        # bypassed by the provider-registry path and so doesn't need the
-        # same treatment here.
+        # the remote API.
         capabilities = OpenAIProvider.SUPPORTED_MODELS.get(model)
         if capabilities is not None:
             size = OpenAIProvider._resolve_size(size, capabilities, model)
@@ -138,7 +141,11 @@ class OpenAIClientManager:
         if model.startswith("gpt-image-"):
             request_params["quality"] = quality
             request_params["output_format"] = output_format
-            request_params["background"] = background
+            # Same background downgrade as generate_image / OpenAIProvider
+            # so transparent on gpt-image-2 never hits the real API.
+            request_params["background"] = OpenAIProvider._resolve_background(
+                background, model
+            )
             if output_format in ["jpeg", "webp"] and compression < 100:
                 request_params["output_compression"] = compression
 

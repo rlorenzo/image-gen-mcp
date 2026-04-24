@@ -30,7 +30,7 @@ Creates an image given a prompt. [Learn more](https://platform.openai.com/docs/g
 | `quality` | string | No | Image quality. `gpt-image-*`: `auto`, `high`, `medium`, `low`. `dall-e-3`: `hd` or `standard` |
 | `style` | string | No | Style for `dall-e-3`: `vivid` or `natural` |
 | `output_format` | string | No | Format for `gpt-image-*`: `png`, `jpeg`, or `webp` |
-| `background` | string | No | Background. `gpt-image-1` / `gpt-image-1.5`: `transparent`, `opaque`, `auto`. `gpt-image-2`: `opaque` or `auto` only (transparent is not supported) |
+| `background` | string | No | Background. `gpt-image-1` / `gpt-image-1.5`: `transparent`, `opaque`, `auto`. `gpt-image-2`: accepts the same values, but `transparent` is auto-downgraded to `auto` since gpt-image-2 has no native transparency support |
 | `moderation` | string | No | Moderation level for `gpt-image-*`: `auto` or `low` |
 
 ### Example Request

@@ -137,9 +137,12 @@ class OpenAIProvider(LLMProvider):
         },
         custom_parameters={
             "moderation": ["auto", "low"],
-            # gpt-image-2 does not support transparent backgrounds.
-            # Ref: https://developers.openai.com/api/docs/guides/image-generation
-            "background": ["auto", "opaque"],
+            # gpt-image-2 does not natively support transparent backgrounds
+            # (OpenAI docs), but callers may pass 'transparent' — it is
+            # transparently downgraded to 'auto' on every outbound path via
+            # OpenAIProvider._resolve_background so the public interface
+            # stays uniform across models.
+            "background": ["auto", "transparent", "opaque"],
         },
     )
 

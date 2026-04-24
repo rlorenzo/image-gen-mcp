@@ -181,9 +181,12 @@ class TestResolveBackground:
         assert provider._resolve_background("auto", "gpt-image-2") == "auto"
         assert provider._resolve_background("opaque", "gpt-image-2") == "opaque"
 
-    def test_capability_list_excludes_transparent_for_v2(self):
+    def test_capability_list_accepts_transparent_for_v2(self):
+        """transparent is kept as an accepted input for interface
+        consistency across gpt-image-* models; the downgrade happens at
+        the outbound API boundary (tested separately)."""
         cap = OpenAIProvider.SUPPORTED_MODELS["gpt-image-2"]
-        assert "transparent" not in cap.custom_parameters["background"]
+        assert "transparent" in cap.custom_parameters["background"]
         assert "transparent" in (
             OpenAIProvider.SUPPORTED_MODELS["gpt-image-1.5"]
             .custom_parameters["background"]
